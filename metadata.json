@@ -1,0 +1,6 @@
+{
+  "name": "Kanto Siomai POS",
+  "description": "Mobile-first POS and micro-ERP for a Filipino street food siomai stall with Google Sheets sync and offline localStorage fallback.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
