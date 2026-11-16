@@ -32,6 +32,12 @@ export function formatPesoCompact(amount: number): string {
   return isNegative ? `-₱${formatted}` : `₱${formatted}`;
 }
 
+export function computeUnitMargin(price: number, cost: number): number {
+  const safePrice = Number.isFinite(price) ? price : 0;
+  const safeCost = Number.isFinite(cost) ? cost : 0;
+  return Math.round((safePrice - safeCost) * 100) / 100;
+}
+
 export function computeMenuServingsAvailable(
   menuItem: MenuItem,
   inventory: InventoryItem[],
@@ -39,8 +45,9 @@ export function computeMenuServingsAvailable(
   if (menuItem.deductions.length === 0) return Infinity;
   let minServings = Infinity;
   for (const d of menuItem.deductions) {
+    if (d.qty <= 0) continue;
     const inv = inventory.find((item) => item.item_id === d.item_id);
-    if (!inv || d.qty <= 0) continue;
+    if (!inv) return 0;
     const possible = Math.floor(Math.max(0, inv.stock) / d.qty);
     if (possible < minServings) {
       minServings = possible;
@@ -256,6 +263,41 @@ export function generateOrderId(existingOrders: OrderRecord[]): string {
   return `KS-${maxNum + 1}`;
 }
 
+export function generateInventoryItemId(
+  existingInventory: InventoryItem[],
+): string {
+  let maxNum = 0;
+  for (const item of existingInventory) {
+    const match = /INV-(\d+)/i.exec(item.item_id);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > maxNum) maxNum = n;
+    }
+  }
+  return `INV-${maxNum + 1}`;
+}
+
+export function generateMenuItemId(
+  name: string,
+  existingMenu: MenuItem[],
+): string {
+  const baseSlug =
+    name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'item';
+
+  const existingIds = new Set(existingMenu.map((m) => m.id));
+  if (!existingIds.has(baseSlug)) return baseSlug;
+
+  let counter = 2;
+  while (existingIds.has(`${baseSlug}-${counter}`)) {
+    counter += 1;
+  }
+  return `${baseSlug}-${counter}`;
+}
+
 function escapeCsvCell(value: string | number): string {
   const str = String(value ?? '');
   if (/[",\n\r]/.test(str)) {
@@ -348,13 +390,44 @@ export function parseItemsStringToLineItems(itemsStr: string): OrderLineItem[] {
     });
 }
 
+export function parseDeductionsJson(raw: unknown): InventoryDeduction[] {
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  const result: InventoryDeduction[] = [];
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== 'object') continue;
+    const obj = entry as Record<string, unknown>;
+    const itemId = String(
+      pickField(obj, ['item_id', 'Item_ID', 'id', 'ID']) ?? '',
+    ).trim();
+    const qty = Number(pickField(obj, ['qty', 'Qty', 'quantity', 'Quantity']) ?? 0);
+    if (itemId && Number.isFinite(qty) && qty > 0) {
+      result.push({ item_id: itemId, qty });
+    }
+  }
+  return result;
+}
+
 export function normalizeSheetDataResponse(
   raw: unknown,
   fallbackInventory: InventoryItem[],
+  fallbackMenu: MenuItem[] = [],
 ): {
   inventory: InventoryItem[];
   orders: OrderRecord[];
   expenses: ExpenseRecord[];
+  menu: MenuItem[];
 } {
   const rootObj =
     raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
@@ -399,6 +472,88 @@ export function normalizeSheetDataResponse(
           };
         })
       : fallbackInventory;
+
+  const rawMenu = Array.isArray(container.menu ?? container.Menu)
+    ? ((container.menu ?? container.Menu) as Record<string, unknown>[])
+    : [];
+
+  const menu: MenuItem[] =
+    rawMenu.length > 0
+      ? rawMenu.map((row, idx) => {
+          const rawName = String(
+            pickField(row, ['name', 'Name', 'item_name', 'Item_Name']) ??
+              `Item ${idx + 1}`,
+          );
+          const rawId = pickField(row, [
+            'id',
+            'ID',
+            'menu_id',
+            'Menu_ID',
+            'item_id',
+            'Item_ID',
+          ]);
+          const slugId =
+            rawName
+              .toLowerCase()
+              .trim()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-+|-+$/g, '') || `item-${idx + 1}`;
+          const itemId = String(rawId ?? slugId);
+          const fallbackMatch = fallbackMenu.find(
+            (m) => m.id === itemId || m.name.toLowerCase() === rawName.toLowerCase(),
+          );
+
+          const price = Number(
+            pickField(row, ['price', 'Price', 'selling_price', 'Selling_Price']) ??
+              fallbackMatch?.price ??
+              0,
+          );
+          const cost = Number(
+            pickField(row, [
+              'cost',
+              'Cost',
+              'unit_cost',
+              'Unit_Cost',
+              'estimated_cost',
+              'Estimated_Cost',
+            ]) ??
+              fallbackMatch?.cost ??
+              0,
+          );
+          const deductionsRaw = pickField(row, [
+            'deductions_json',
+            'Deductions_JSON',
+            'deductions',
+            'Deductions',
+          ]);
+
+          return {
+            id: itemId,
+            name: rawName,
+            subtitle: String(
+              pickField(row, ['subtitle', 'Subtitle', 'description', 'Description']) ??
+                fallbackMatch?.subtitle ??
+                '',
+            ),
+            price: Number.isFinite(price) ? price : 0,
+            cost: Number.isFinite(cost) ? cost : 0,
+            category: String(
+              pickField(row, ['category', 'Category']) ??
+                fallbackMatch?.category ??
+                'Food',
+            ),
+            image: String(
+              pickField(row, ['image', 'Image', 'image_url', 'Image_URL']) ??
+                fallbackMatch?.image ??
+                '',
+            ),
+            deductions:
+              deductionsRaw !== undefined
+                ? parseDeductionsJson(deductionsRaw)
+                : (fallbackMatch?.deductions ?? []),
+          };
+        })
+      : fallbackMenu;
 
   const rawOrders = Array.isArray(container.orders ?? container.Orders)
     ? ((container.orders ?? container.Orders) as Record<string, unknown>[])
@@ -471,6 +626,7 @@ export function normalizeSheetDataResponse(
 
   return {
     inventory,
+    menu,
     orders: orders.sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     ),

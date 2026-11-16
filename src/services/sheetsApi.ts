@@ -1,12 +1,15 @@
 import {
   INITIAL_EXPENSES,
   INITIAL_INVENTORY,
+  INITIAL_MENU_ITEMS,
   INITIAL_ORDERS,
 } from '../data/menuAndSeed';
 import type {
   AddExpensePayload,
+  AddMenuItemPayload,
   ExpenseRecord,
   InventoryItem,
+  MenuItem,
   NewOrderPayload,
   OrderRecord,
   RestockPayload,
@@ -15,6 +18,7 @@ import { normalizeSheetDataResponse } from '../utils/posLogic';
 
 const STORAGE_KEYS = {
   webAppUrl: 'kanto_siomai_webapp_url_v1',
+  menu: 'kanto_siomai_menu_v1',
   inventory: 'kanto_siomai_inventory_v1',
   orders: 'kanto_siomai_orders_v1',
   expenses: 'kanto_siomai_expenses_v1',
@@ -23,6 +27,7 @@ const STORAGE_KEYS = {
 
 export interface LocalStoreSnapshot {
   webAppUrl: string;
+  menu: MenuItem[];
   inventory: InventoryItem[];
   orders: OrderRecord[];
   expenses: ExpenseRecord[];
@@ -42,6 +47,7 @@ export function loadLocalStore(): LocalStoreSnapshot {
   if (typeof window === 'undefined') {
     return {
       webAppUrl: '',
+      menu: INITIAL_MENU_ITEMS,
       inventory: INITIAL_INVENTORY,
       orders: INITIAL_ORDERS,
       expenses: INITIAL_EXPENSES,
@@ -49,8 +55,19 @@ export function loadLocalStore(): LocalStoreSnapshot {
     };
   }
 
+  const storedMenu = safeJsonParse<MenuItem[]>(
+    window.localStorage.getItem(STORAGE_KEYS.menu),
+    INITIAL_MENU_ITEMS,
+  );
+  const normalizedMenu = storedMenu.map((item) => ({
+    ...item,
+    cost: Number.isFinite(Number(item.cost)) ? Number(item.cost) : 0,
+    deductions: Array.isArray(item.deductions) ? item.deductions : [],
+  }));
+
   return {
     webAppUrl: window.localStorage.getItem(STORAGE_KEYS.webAppUrl) ?? '',
+    menu: normalizedMenu,
     inventory: safeJsonParse<InventoryItem[]>(
       window.localStorage.getItem(STORAGE_KEYS.inventory),
       INITIAL_INVENTORY,
@@ -75,6 +92,11 @@ export function saveWebAppUrl(url: string): void {
   } else {
     window.localStorage.removeItem(STORAGE_KEYS.webAppUrl);
   }
+}
+
+export function saveMenuLocal(menu: MenuItem[]): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(STORAGE_KEYS.menu, JSON.stringify(menu));
 }
 
 export function saveInventoryLocal(inventory: InventoryItem[]): void {
@@ -102,6 +124,7 @@ export function saveLastSyncLocal(iso: string | null): void {
 }
 
 export function resetDemoDataLocal(): LocalStoreSnapshot {
+  saveMenuLocal(INITIAL_MENU_ITEMS);
   saveInventoryLocal(INITIAL_INVENTORY);
   saveOrdersLocal(INITIAL_ORDERS);
   saveExpensesLocal(INITIAL_EXPENSES);
@@ -111,6 +134,7 @@ export function resetDemoDataLocal(): LocalStoreSnapshot {
       typeof window !== 'undefined'
         ? window.localStorage.getItem(STORAGE_KEYS.webAppUrl) ?? ''
         : '',
+    menu: INITIAL_MENU_ITEMS,
     inventory: INITIAL_INVENTORY,
     orders: INITIAL_ORDERS,
     expenses: INITIAL_EXPENSES,
@@ -132,10 +156,12 @@ export function isValidAppsScriptUrl(url: string): boolean {
 export async function fetchSheetsData(
   webAppUrl: string,
   fallbackInventory: InventoryItem[],
+  fallbackMenu: MenuItem[] = INITIAL_MENU_ITEMS,
 ): Promise<{
   inventory: InventoryItem[];
   orders: OrderRecord[];
   expenses: ExpenseRecord[];
+  menu: MenuItem[];
 }> {
   const trimmed = webAppUrl.trim();
   if (!trimmed) {
@@ -158,12 +184,16 @@ export async function fetchSheetsData(
   }
 
   const data: unknown = await response.json();
-  return normalizeSheetDataResponse(data, fallbackInventory);
+  return normalizeSheetDataResponse(data, fallbackInventory, fallbackMenu);
 }
 
 async function postToAppsScript(
   webAppUrl: string,
-  payload: NewOrderPayload | RestockPayload | AddExpensePayload,
+  payload:
+    | NewOrderPayload
+    | RestockPayload
+    | AddExpensePayload
+    | AddMenuItemPayload,
 ): Promise<boolean> {
   const trimmed = webAppUrl.trim();
   if (!trimmed) return false;
@@ -207,13 +237,21 @@ export function postAddExpense(
   return postToAppsScript(webAppUrl, payload);
 }
 
+export function postAddMenuItem(
+  webAppUrl: string,
+  payload: AddMenuItemPayload,
+): Promise<boolean> {
+  return postToAppsScript(webAppUrl, payload);
+}
+
 export const APPS_SCRIPT_TEMPLATE = `// Google Apps Script Web App for Kanto Siomai POS
-// Sheets expected: "Inventory", "Orders", "Expenses"
+// Sheets expected: "Menu", "Inventory", "Orders", "Expenses"
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) || "getData";
   if (action === "getData") {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     return jsonResponse({
+      menu: sheetToObjects(ss.getSheetByName("Menu")),
       inventory: sheetToObjects(ss.getSheetByName("Inventory")),
       orders: sheetToObjects(ss.getSheetByName("Orders")),
       expenses: sheetToObjects(ss.getSheetByName("Expenses"))
@@ -260,6 +298,30 @@ function doPost(e) {
     exp.appendRow([
       "EXP-" + Date.now(), new Date().toISOString(),
       data.description, data.category, data.amount
+    ]);
+    return jsonResponse({ ok: true });
+  }
+  if (data.action === "addMenuItem") {
+    if (data.new_inventory) {
+      var invTab = ss.getSheetByName("Inventory");
+      invTab.appendRow([
+        data.new_inventory.item_id,
+        data.new_inventory.name,
+        data.new_inventory.unit || "pcs",
+        Number(data.new_inventory.stock || 0),
+        Number(data.new_inventory.low_stock_alert || 10),
+        new Date().toISOString()
+      ]);
+    }
+    var menuTab = ss.getSheetByName("Menu");
+    var slugId = String(data.name || "item").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    menuTab.appendRow([
+      slugId,
+      data.name,
+      Number(data.price || 0),
+      Number(data.cost || 0),
+      data.category || "Food",
+      JSON.stringify(data.deductions || [])
     ]);
     return jsonResponse({ ok: true });
   }

@@ -213,6 +213,7 @@ export function SettingsModal({
             <div className="mt-3 space-y-2.5 text-xs text-[#665347]">
               <p>
                 Deploy a Google Apps Script Web App with tabs{' '}
+                <strong className="text-[#261812]">Menu</strong>,{' '}
                 <strong className="text-[#261812]">Inventory</strong>,{' '}
                 <strong className="text-[#261812]">Orders</strong>, and{' '}
                 <strong className="text-[#261812]">Expenses</strong>. Access:{' '}

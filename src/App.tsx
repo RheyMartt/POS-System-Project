@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AddItemModal, type NewItemFormSubmission } from './components/AddItemModal';
 import { BottomNav } from './components/BottomNav';
 import { CheckoutDrawer } from './components/CheckoutDrawer';
 import { ExpensesTab } from './components/ExpensesTab';
@@ -9,17 +10,19 @@ import { ReceiptModal } from './components/ReceiptModal';
 import { RestockModal } from './components/RestockModal';
 import { SalesTab } from './components/SalesTab';
 import { SettingsModal } from './components/SettingsModal';
-import { INITIAL_INVENTORY, MENU_ITEMS } from './data/menuAndSeed';
+import { INITIAL_INVENTORY, INITIAL_MENU_ITEMS } from './data/menuAndSeed';
 import {
   fetchSheetsData,
   loadLocalStore,
   postAddExpense,
+  postAddMenuItem,
   postNewOrder,
   postRestock,
   resetDemoDataLocal,
   saveExpensesLocal,
   saveInventoryLocal,
   saveLastSyncLocal,
+  saveMenuLocal,
   saveOrdersLocal,
   saveWebAppUrl,
 } from './services/sheetsApi';
@@ -30,6 +33,7 @@ import type {
   ExpenseRecord,
   InventoryItem,
   MenuItem,
+  NewInventorySpec,
   OrderRecord,
   PaymentMethod,
   SyncFeedback,
@@ -40,6 +44,8 @@ import {
   applyRestock,
   computeCartTotals,
   computeMenuServingsAvailable,
+  generateInventoryItemId,
+  generateMenuItemId,
   generateOrderId,
   getStockStatus,
 } from './utils/posLogic';
@@ -49,6 +55,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<TabId>('pos');
   const [webAppUrl, setWebAppUrl] = useState<string>(initialStore.webAppUrl);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialStore.menu);
   const [inventory, setInventory] = useState<InventoryItem[]>(initialStore.inventory);
   const [orders, setOrders] = useState<OrderRecord[]>(initialStore.orders);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>(initialStore.expenses);
@@ -66,6 +73,7 @@ export default function App() {
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
+  const [isAddItemOpen, setIsAddItemOpen] = useState<boolean>(false);
   const [receiptState, setReceiptState] = useState<{
     order: OrderRecord;
     fromHistory: boolean;
@@ -114,10 +122,16 @@ export default function App() {
 
       setIsSyncing(true);
       try {
-        const data = await fetchSheetsData(trimmed, INITIAL_INVENTORY);
+        const data = await fetchSheetsData(
+          trimmed,
+          INITIAL_INVENTORY,
+          INITIAL_MENU_ITEMS,
+        );
+        setMenuItems(data.menu);
         setInventory(data.inventory);
         setOrders(data.orders);
         setExpenses(data.expenses);
+        saveMenuLocal(data.menu);
         saveInventoryLocal(data.inventory);
         saveOrdersLocal(data.orders);
         saveExpensesLocal(data.expenses);
@@ -186,7 +200,7 @@ export default function App() {
   };
 
   const handleIncrementCartId = (menuItemId: string) => {
-    const menuItem = MENU_ITEMS.find((m) => m.id === menuItemId);
+    const menuItem = menuItems.find((m) => m.id === menuItemId);
     if (menuItem) handleAddToCart(menuItem);
   };
 
@@ -349,6 +363,78 @@ export default function App() {
     setIsSubmitting(false);
   };
 
+  const handleAddMenuItem = async (form: NewItemFormSubmission) => {
+    setIsSubmitting(true);
+    const nowIso = new Date().toISOString();
+
+    let nextInventory = inventory;
+    let newInventorySpec: NewInventorySpec | null = null;
+    let finalDeductions = form.deductions;
+
+    if (form.linkingMode === 'new' && form.newInventory) {
+      const newInvId = generateInventoryItemId(inventory);
+      const createdInventoryItem: InventoryItem = {
+        item_id: newInvId,
+        name: form.newInventory.name,
+        unit: form.newInventory.unit,
+        stock: form.newInventory.stock,
+        low_stock_alert: form.newInventory.low_stock_alert,
+        updated_at: nowIso,
+      };
+      nextInventory = [...inventory, createdInventoryItem];
+      setInventory(nextInventory);
+      saveInventoryLocal(nextInventory);
+
+      newInventorySpec = {
+        item_id: newInvId,
+        name: form.newInventory.name,
+        unit: form.newInventory.unit,
+        stock: form.newInventory.stock,
+        low_stock_alert: form.newInventory.low_stock_alert,
+      };
+      finalDeductions = [{ item_id: newInvId, qty: form.newInventory.deduct_qty }];
+    }
+
+    const newMenuId = generateMenuItemId(form.name, menuItems);
+    const createdMenuItem: MenuItem = {
+      id: newMenuId,
+      name: form.name,
+      price: form.price,
+      cost: form.cost,
+      category: form.category,
+      image: '',
+      deductions: finalDeductions,
+    };
+
+    const nextMenu = [...menuItems, createdMenuItem];
+    setMenuItems(nextMenu);
+    saveMenuLocal(nextMenu);
+    setIsAddItemOpen(false);
+
+    if (webAppUrl.trim() && isOnline) {
+      const ok = await postAddMenuItem(webAppUrl, {
+        action: 'addMenuItem',
+        name: createdMenuItem.name,
+        price: createdMenuItem.price,
+        cost: createdMenuItem.cost,
+        category: createdMenuItem.category,
+        deductions: finalDeductions,
+        new_inventory: newInventorySpec,
+      });
+      if (ok) {
+        setSheetsReachable(true);
+        showFeedback('success', `Added "${createdMenuItem.name}" and synced to Sheets.`);
+      } else {
+        setSheetsReachable(false);
+        showFeedback('warning', `Added "${createdMenuItem.name}" locally (Sheets offline).`);
+      }
+    } else {
+      showFeedback('success', `Added "${createdMenuItem.name}" to menu.`);
+    }
+
+    setIsSubmitting(false);
+  };
+
   const handleManualSync = () => {
     if (!webAppUrl.trim()) {
       setIsSettingsOpen(true);
@@ -373,6 +459,7 @@ export default function App() {
 
   const handleResetDemoData = () => {
     const reset = resetDemoDataLocal();
+    setMenuItems(reset.menu);
     setInventory(reset.inventory);
     setOrders(reset.orders);
     setExpenses(reset.expenses);
@@ -417,7 +504,7 @@ export default function App() {
         <main className="flex-1">
           {activeTab === 'pos' && (
             <PosTab
-              menuItems={MENU_ITEMS}
+              menuItems={menuItems}
               inventory={inventory}
               cart={cart}
               cartItemCount={cartTotals.itemCount}
@@ -426,6 +513,7 @@ export default function App() {
               onDecrementCart={handleDecrementCart}
               onClearCart={handleClearCart}
               onOpenCheckout={() => setIsCheckoutOpen(true)}
+              onOpenAddItem={() => setIsAddItemOpen(true)}
             />
           )}
 
@@ -483,6 +571,14 @@ export default function App() {
           isSubmitting={isSubmitting}
           onClose={() => setRestockTarget(null)}
           onConfirmRestock={handleConfirmRestock}
+        />
+
+        <AddItemModal
+          isOpen={isAddItemOpen}
+          inventory={inventory}
+          isSubmitting={isSubmitting}
+          onClose={() => setIsAddItemOpen(false)}
+          onSubmit={handleAddMenuItem}
         />
 
         <SettingsModal

@@ -24,13 +24,16 @@ export interface InventoryItem {
   updated_at?: string;
 }
 
+export type MenuCategory = 'Food' | 'Meals' | 'Drinks' | 'Add-ons';
+
 export interface MenuItem {
   id: string;
   name: string;
-  subtitle: string;
+  subtitle?: string;
   price: number;
-  category: 'Siomai' | 'Drinks' | 'Add-on';
-  image: string;
+  cost: number;
+  category: MenuCategory | string;
+  image?: string;
   deductions: InventoryDeduction[];
 }
 
@@ -103,4 +106,22 @@ export interface AddExpensePayload {
   description: string;
   category: string;
   amount: number;
+}
+
+export interface NewInventorySpec {
+  item_id: string;
+  name: string;
+  unit: string;
+  stock: number;
+  low_stock_alert: number;
+}
+
+export interface AddMenuItemPayload {
+  action: 'addMenuItem';
+  name: string;
+  price: number;
+  cost: number;
+  category: string;
+  deductions: InventoryDeduction[];
+  new_inventory: NewInventorySpec | null;
 }

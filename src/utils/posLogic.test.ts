@@ -6,14 +6,22 @@ import {
   computeCartTotals,
   computeFinancialSummary,
   computeMenuServingsAvailable,
+  computeUnitMargin,
   formatPeso,
   formatSalesCsv,
+  generateInventoryItemId,
+  generateMenuItemId,
   generateOrderId,
   getStockStatus,
   normalizeSheetDataResponse,
+  parseDeductionsJson,
   validateCheckout,
 } from './posLogic';
-import { INITIAL_INVENTORY, MENU_ITEMS } from '../data/menuAndSeed';
+import {
+  INITIAL_INVENTORY,
+  INITIAL_MENU_ITEMS,
+  MENU_ITEMS,
+} from '../data/menuAndSeed';
 import type { CartItem, ExpenseRecord, OrderRecord } from '../types/pos';
 
 test('formatPeso formats Philippine Peso cleanly', () => {
@@ -77,13 +85,38 @@ test('applyInventoryDeductions and applyRestock update counts accurately and cla
   assert.equal(restocked.find((i) => i.item_id === 'INV-3')?.stock, 50);
 });
 
-test('computeMenuServingsAvailable finds limiting inventory ingredient', () => {
+test('computeMenuServingsAvailable finds limiting inventory ingredient and handles untracked or missing stock', () => {
   const siomai4 = MENU_ITEMS[0]; // needs 4 INV-1 and 1 INV-2
   const inv = [
     { item_id: 'INV-1', name: 'Siomai Pieces', unit: 'pcs', stock: 11, low_stock_alert: 40 },
     { item_id: 'INV-2', name: 'Paper Bowls', unit: 'pcs', stock: 50, low_stock_alert: 20 },
   ];
   assert.equal(computeMenuServingsAvailable(siomai4, inv), 2);
+
+  // Untracked item returns Infinity
+  assert.equal(
+    computeMenuServingsAvailable(
+      { id: 'sauce', name: 'Extra Sauce', price: 5, cost: 1, category: 'Add-ons', deductions: [] },
+      inv,
+    ),
+    Infinity,
+  );
+
+  // Missing linked inventory item returns 0
+  assert.equal(
+    computeMenuServingsAvailable(
+      {
+        id: 'missing',
+        name: 'Missing Link',
+        price: 25,
+        cost: 10,
+        category: 'Drinks',
+        deductions: [{ item_id: 'INV-99', qty: 1 }],
+      },
+      inv,
+    ),
+    0,
+  );
 });
 
 test('getStockStatus returns out, critical, low, and ok states', () => {
@@ -175,7 +208,7 @@ test('computeFinancialSummary computes gross, cash vs gcash, expenses, and net p
   assert.equal(summary.netProfit, 80);
 });
 
-test('generateOrderId increments highest existing numeric KS suffix', () => {
+test('generateOrderId, generateInventoryItemId, and generateMenuItemId increment cleanly', () => {
   const existing: OrderRecord[] = [
     {
       order_id: 'KS-1005',
@@ -192,6 +225,12 @@ test('generateOrderId increments highest existing numeric KS suffix', () => {
   ];
   assert.equal(generateOrderId(existing), 'KS-1006');
   assert.equal(generateOrderId([]), 'KS-1001');
+
+  assert.equal(generateInventoryItemId(INITIAL_INVENTORY), 'INV-5');
+  assert.equal(generateInventoryItemId([]), 'INV-1');
+
+  assert.equal(generateMenuItemId('Buko Juice', INITIAL_MENU_ITEMS), 'buko-juice');
+  assert.equal(generateMenuItemId('Gulaman', INITIAL_MENU_ITEMS), 'gulaman-2');
 });
 
 test('formatSalesCsv escapes commas and outputs summary rows', () => {
@@ -216,9 +255,48 @@ test('formatSalesCsv escapes commas and outputs summary rows', () => {
   assert.ok(csv.includes('SUMMARY,Gross Sales,55.00'));
 });
 
-test('normalizeSheetDataResponse parses Apps Script uppercase/lowercase sheet columns', () => {
+test('parseDeductionsJson handles JSON strings, arrays, and invalid inputs', () => {
+  assert.deepEqual(
+    parseDeductionsJson('[{"item_id":"INV-1","qty":4},{"item_id":"INV-2","qty":1}]'),
+    [
+      { item_id: 'INV-1', qty: 4 },
+      { item_id: 'INV-2', qty: 1 },
+    ],
+  );
+  assert.deepEqual(parseDeductionsJson([{ Item_ID: 'INV-3', Qty: 2 }]), [
+    { item_id: 'INV-3', qty: 2 },
+  ]);
+  assert.deepEqual(parseDeductionsJson('not-valid-json'), []);
+  assert.deepEqual(parseDeductionsJson(''), []);
+});
+
+test('computeUnitMargin calculates Price - Cost accurately', () => {
+  assert.equal(computeUnitMargin(35, 15), 20);
+  assert.equal(computeUnitMargin(20.5, 7.25), 13.25);
+  assert.equal(computeUnitMargin(15, 20), -5);
+});
+
+test('normalizeSheetDataResponse parses menu array with Deductions_JSON and falls back safely', () => {
   const normalized = normalizeSheetDataResponse(
     {
+      menu: [
+        {
+          ID: 'chicharon-siomai',
+          Name: 'Chicharon Siomai',
+          Price: 45,
+          Cost: 20,
+          Category: 'Food',
+          Deductions_JSON: '[{"item_id":"INV-1","qty":4},{"item_id":"INV-2","qty":1}]',
+        },
+        {
+          ID: 'chili-cup',
+          Name: 'Extra Chili',
+          Price: 10,
+          Cost: 3,
+          Category: 'Add-ons',
+          Deductions_JSON: '[]',
+        },
+      ],
       inventory: [
         { Item_ID: 'INV-1', Name: 'Siomai Pieces', Unit: 'pcs', Stock: 96, Low_Stock_Alert: 40 },
       ],
@@ -243,11 +321,30 @@ test('normalizeSheetDataResponse parses Apps Script uppercase/lowercase sheet co
       ],
     },
     INITIAL_INVENTORY,
+    INITIAL_MENU_ITEMS,
   );
 
+  assert.equal(normalized.menu.length, 2);
+  assert.equal(normalized.menu[0].id, 'chicharon-siomai');
+  assert.equal(normalized.menu[0].price, 45);
+  assert.equal(normalized.menu[0].cost, 20);
+  assert.equal(normalized.menu[0].category, 'Food');
+  assert.deepEqual(normalized.menu[0].deductions, [
+    { item_id: 'INV-1', qty: 4 },
+    { item_id: 'INV-2', qty: 1 },
+  ]);
+  assert.deepEqual(normalized.menu[1].deductions, []);
   assert.equal(normalized.inventory[0].stock, 96);
   assert.equal(normalized.orders[0].order_id, 'KS-2001');
   assert.equal(normalized.orders[0].payment_method, 'GCash');
   assert.equal(normalized.orders[0].gcash_ref, 'GC-9988');
   assert.equal(normalized.expenses[0].amount, 150);
+
+  // Fallback when menu is missing from Sheets response
+  const fallbackRes = normalizeSheetDataResponse(
+    { inventory: [] },
+    INITIAL_INVENTORY,
+    INITIAL_MENU_ITEMS,
+  );
+  assert.equal(fallbackRes.menu.length, INITIAL_MENU_ITEMS.length);
 });

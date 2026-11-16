@@ -6,13 +6,21 @@ import type {
   OrderRecord,
 } from '../types/pos';
 
-export const MENU_ITEMS: MenuItem[] = [
+export const MENU_CATEGORIES: MenuItem['category'][] = [
+  'Food',
+  'Meals',
+  'Drinks',
+  'Add-ons',
+];
+
+export const INITIAL_MENU_ITEMS: MenuItem[] = [
   {
     id: 'siomai-4',
     name: 'Siomai 4 pcs',
     subtitle: '4 steamed pcs · chili garlic & calamansi',
     price: 35,
-    category: 'Siomai',
+    cost: 15,
+    category: 'Food',
     image: '/src/assets/images/menu_siomai_4pcs_1794747913797.jpg',
     deductions: [
       { item_id: 'INV-1', qty: 4 },
@@ -24,7 +32,8 @@ export const MENU_ITEMS: MenuItem[] = [
     name: 'Siomai w/ Rice',
     subtitle: '4 pcs siomai · steamed jasmine rice',
     price: 50,
-    category: 'Siomai',
+    cost: 22,
+    category: 'Meals',
     image: '/src/assets/images/menu_siomai_rice_1794747913802.jpg',
     deductions: [
       { item_id: 'INV-1', qty: 4 },
@@ -36,6 +45,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: 'Gulaman',
     subtitle: 'Iced sago & brown sugar jelly · 16oz cup',
     price: 20,
+    cost: 7,
     category: 'Drinks',
     image: '/src/assets/images/menu_gulaman_1794747914482.jpg',
     deductions: [{ item_id: 'INV-3', qty: 1 }],
@@ -45,6 +55,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: 'Bottled Water',
     subtitle: 'Chilled purified water · 500ml',
     price: 20,
+    cost: 10,
     category: 'Drinks',
     image: '/src/assets/images/menu_bottled_water_1794747913879.jpg',
     deductions: [{ item_id: 'INV-4', qty: 1 }],
@@ -54,11 +65,14 @@ export const MENU_ITEMS: MenuItem[] = [
     name: 'Extra Rice',
     subtitle: 'Steamed white rice · 1 bowl',
     price: 15,
-    category: 'Add-on',
+    cost: 6,
+    category: 'Add-ons',
     image: '/src/assets/images/menu_extra_rice_1794747915506.jpg',
     deductions: [{ item_id: 'INV-2', qty: 1 }],
   },
 ];
+
+export const MENU_ITEMS = INITIAL_MENU_ITEMS;
 
 export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   'Ingredients',

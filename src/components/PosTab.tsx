@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CupSoda,
   Minus,
+  Plus,
   ShoppingBag,
   Trash2,
   UtensilsCrossed,
@@ -10,6 +11,7 @@ import {
 import type { CartItem, InventoryItem, MenuItem } from '../types/pos';
 import {
   computeMenuServingsAvailable,
+  computeUnitMargin,
   formatPeso,
   formatPesoCompact,
 } from '../utils/posLogic';
@@ -24,20 +26,21 @@ interface PosTabProps {
   onDecrementCart: (menuItemId: string) => void;
   onClearCart: () => void;
   onOpenCheckout: () => void;
+  onOpenAddItem: () => void;
 }
 
 function MenuImage({ item }: { item: MenuItem }) {
   const [hasError, setHasError] = useState(false);
 
-  if (hasError) {
+  if (!item.image || hasError) {
     return (
       <div className="w-full h-full bg-gradient-to-br from-[#EFE7D8] via-[#F7F2E8] to-[#DBEAFE] flex flex-col items-center justify-center text-[#261812] p-2">
         {item.category === 'Drinks' ? (
-          <CupSoda className="w-8 h-8 mb-1 text-[#1D4ED8]" aria-hidden="true" />
+          <CupSoda className="w-7 h-7 mb-1 text-[#1D4ED8]" aria-hidden="true" />
         ) : (
-          <UtensilsCrossed className="w-8 h-8 mb-1 text-[#1D4ED8]" aria-hidden="true" />
+          <UtensilsCrossed className="w-7 h-7 mb-1 text-[#1D4ED8]" aria-hidden="true" />
         )}
-        <span className="text-[11px] font-semibold text-center leading-tight">
+        <span className="text-[11px] font-semibold text-center leading-tight line-clamp-2">
           {item.name}
         </span>
       </div>
@@ -65,6 +68,7 @@ export function PosTab({
   onDecrementCart,
   onClearCart,
   onOpenCheckout,
+  onOpenAddItem,
 }: PosTabProps) {
   const getQtyInCart = (id: string) =>
     cart.find((c) => c.menu_item_id === id)?.qty ?? 0;
@@ -75,23 +79,31 @@ export function PosTab({
         <h1 className="text-lg font-extrabold tracking-tight text-[#261812]">
           Quick Order
         </h1>
-        <span className="text-xs font-semibold text-[#665347] whitespace-nowrap shrink-0">
-          Tap tile to add
-        </span>
+        <button
+          type="button"
+          onClick={onOpenAddItem}
+          className="min-h-[44px] px-3.5 rounded-xl border border-[#DDD1BE] bg-[#FFFDF8] hover:bg-[#EFE7D8] active:scale-[0.98] text-[#261812] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-2xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]"
+        >
+          <Plus className="w-4 h-4 text-[#1D4ED8]" aria-hidden="true" />
+          <span>Add Item</span>
+        </button>
       </div>
 
       <div className="px-4 grid grid-cols-2 gap-2.5">
         {menuItems.map((item, idx) => {
           const qtyInCart = getQtyInCart(item.id);
           const availableServings = computeMenuServingsAvailable(item, inventory);
-          const isOut = availableServings <= 0;
+          const isUnlimited = !Number.isFinite(availableServings);
+          const isOut = !isUnlimited && availableServings <= 0;
           const isLow =
+            !isUnlimited &&
             !isOut &&
             item.deductions.some((d) => {
               const inv = inventory.find((i) => i.item_id === d.item_id);
               return inv ? inv.stock < inv.low_stock_alert : false;
             });
           const isWideTile = idx === menuItems.length - 1 && menuItems.length % 2 === 1;
+          const unitMargin = computeUnitMargin(item.price, item.cost ?? 0);
 
           return (
             <div
@@ -108,7 +120,7 @@ export function PosTab({
               <button
                 type="button"
                 onClick={() => onAddToCart(item)}
-                disabled={isOut || qtyInCart >= availableServings}
+                disabled={isOut || (!isUnlimited && qtyInCart >= availableServings)}
                 aria-label={`Add ${item.name} (${formatPesoCompact(item.price)}) to order`}
                 className={`text-left active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1D4ED8] disabled:opacity-55 disabled:cursor-not-allowed ${
                   isWideTile
@@ -136,12 +148,26 @@ export function PosTab({
                   className={
                     isWideTile
                       ? 'flex-1 min-w-0 flex items-center justify-between gap-2 pr-1'
-                      : 'pt-2.5 flex flex-col gap-1'
+                      : 'pt-2 flex flex-col gap-1'
                   }
                 >
-                  <h2 className="text-base font-extrabold text-[#261812] leading-tight truncate">
-                    {item.name}
-                  </h2>
+                  <div className="min-w-0 flex flex-col gap-0.5">
+                    <h2 className="text-base font-extrabold text-[#261812] leading-tight truncate">
+                      {item.name}
+                    </h2>
+                    <span
+                      data-testid={`margin-badge-${item.id}`}
+                      className={`inline-flex items-center self-start px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono-num tabular-nums ${
+                        unitMargin > 0
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/80'
+                          : unitMargin < 0
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-[#EFE7D8] text-[#665347]'
+                      }`}
+                    >
+                      {unitMargin >= 0 ? `+${formatPesoCompact(unitMargin)}` : formatPesoCompact(unitMargin)} margin
+                    </span>
+                  </div>
 
                   <div
                     className={`flex items-baseline gap-2 ${
@@ -166,9 +192,11 @@ export function PosTab({
                       <span>
                         {isOut
                           ? 'Sold out'
-                          : isLow
-                            ? `Low · ${availableServings}`
-                            : `${availableServings} left`}
+                          : isUnlimited
+                            ? 'Open stock'
+                            : isLow
+                              ? `Low · ${availableServings}`
+                              : `${availableServings} left`}
                       </span>
                     </span>
                   </div>
