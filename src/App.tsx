@@ -51,7 +51,7 @@ import {
 } from './utils/posLogic';
 
 export default function App() {
-  const [initialStore] = useState(() => loadLocalStore());
+  const initialStore = useMemo(() => loadLocalStore(), []);
 
   const [activeTab, setActiveTab] = useState<TabId>('pos');
   const [webAppUrl, setWebAppUrl] = useState<string>(initialStore.webAppUrl);
@@ -95,6 +95,7 @@ export default function App() {
   }, [feedback]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
@@ -154,12 +155,10 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (webAppUrl) {
-      void syncFromSheets(webAppUrl, true);
+    if (initialStore.webAppUrl) {
+      void syncFromSheets(initialStore.webAppUrl, true);
     }
-    // Run initial fetch once on mount if Web App URL is already saved
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialStore.webAppUrl, syncFromSheets]);
 
   const connectionMode: ConnectionMode =
     webAppUrl.trim() && isOnline && sheetsReachable ? 'connected' : 'local';
@@ -174,37 +173,43 @@ export default function App() {
     [inventory],
   );
 
-  const handleAddToCart = (menuItem: MenuItem) => {
-    const maxServings = computeMenuServingsAvailable(menuItem, inventory);
-    if (maxServings <= 0) return;
+  const handleAddToCart = useCallback(
+    (menuItem: MenuItem) => {
+      const maxServings = computeMenuServingsAvailable(menuItem, inventory);
+      if (maxServings <= 0) return;
 
-    setCart((prev) => {
-      const existing = prev.find((c) => c.menu_item_id === menuItem.id);
-      if (existing) {
-        if (existing.qty >= maxServings) return prev;
-        return prev.map((c) =>
-          c.menu_item_id === menuItem.id ? { ...c, qty: c.qty + 1 } : c,
-        );
-      }
-      return [
-        ...prev,
-        {
-          menu_item_id: menuItem.id,
-          name: menuItem.name,
-          unit_price: menuItem.price,
-          qty: 1,
-          deductions: menuItem.deductions,
-        },
-      ];
-    });
-  };
+      setCart((prev) => {
+        const existing = prev.find((c) => c.menu_item_id === menuItem.id);
+        if (existing) {
+          if (existing.qty >= maxServings) return prev;
+          return prev.map((c) =>
+            c.menu_item_id === menuItem.id ? { ...c, qty: c.qty + 1 } : c,
+          );
+        }
+        return [
+          ...prev,
+          {
+            menu_item_id: menuItem.id,
+            name: menuItem.name,
+            unit_price: menuItem.price,
+            qty: 1,
+            deductions: menuItem.deductions ?? [],
+          },
+        ];
+      });
+    },
+    [inventory],
+  );
 
-  const handleIncrementCartId = (menuItemId: string) => {
-    const menuItem = menuItems.find((m) => m.id === menuItemId);
-    if (menuItem) handleAddToCart(menuItem);
-  };
+  const handleIncrementCartId = useCallback(
+    (menuItemId: string) => {
+      const menuItem = menuItems.find((m) => m.id === menuItemId);
+      if (menuItem) handleAddToCart(menuItem);
+    },
+    [handleAddToCart, menuItems],
+  );
 
-  const handleDecrementCart = (menuItemId: string) => {
+  const handleDecrementCart = useCallback((menuItemId: string) => {
     setCart((prev) =>
       prev
         .map((c) =>
@@ -212,11 +217,11 @@ export default function App() {
         )
         .filter((c) => c.qty > 0),
     );
-  };
+  }, []);
 
-  const handleClearCart = () => {
+  const handleClearCart = useCallback(() => {
     setCart([]);
-  };
+  }, []);
 
   const handleCompleteOrder = async (details: {
     paymentMethod: PaymentMethod;
@@ -227,92 +232,102 @@ export default function App() {
     if (cartTotals.itemCount === 0) return;
 
     setIsSubmitting(true);
-    const nowIso = new Date().toISOString();
-    const orderId = generateOrderId(orders);
+    try {
+      const nowIso = new Date().toISOString();
+      const orderId = generateOrderId(orders);
 
-    const newOrder: OrderRecord = {
-      order_id: orderId,
-      created_at: nowIso,
-      items: cartTotals.itemsSummary,
-      line_items: cartTotals.lineItems,
-      total_amount: cartTotals.totalAmount,
-      payment_method: details.paymentMethod,
-      gcash_ref: details.gcashRef,
-      amount_tendered: details.amountTendered,
-      change_due: details.changeDue,
-      deductions: cartTotals.deductions,
-      synced: false,
-    };
+      const newOrder: OrderRecord = {
+        order_id: orderId,
+        created_at: nowIso,
+        items: cartTotals.itemsSummary,
+        line_items: cartTotals.lineItems,
+        total_amount: cartTotals.totalAmount,
+        payment_method: details.paymentMethod,
+        gcash_ref: details.gcashRef,
+        amount_tendered: details.amountTendered,
+        change_due: details.changeDue,
+        deductions: cartTotals.deductions,
+        synced: false,
+      };
 
-    const nextInventory = applyInventoryDeductions(
-      inventory,
-      cartTotals.deductions,
-      nowIso,
-    );
-    const nextOrders = [newOrder, ...orders];
+      const nextInventory = applyInventoryDeductions(
+        inventory,
+        cartTotals.deductions,
+        nowIso,
+      );
+      const nextOrders = [newOrder, ...orders];
 
-    setInventory(nextInventory);
-    setOrders(nextOrders);
-    saveInventoryLocal(nextInventory);
-    saveOrdersLocal(nextOrders);
-    setCart([]);
-    setIsCheckoutOpen(false);
-    setReceiptState({ order: newOrder, fromHistory: false });
+      setInventory(nextInventory);
+      setOrders(nextOrders);
+      saveInventoryLocal(nextInventory);
+      saveOrdersLocal(nextOrders);
+      setCart([]);
+      setIsCheckoutOpen(false);
+      setReceiptState({ order: newOrder, fromHistory: false });
 
-    if (webAppUrl.trim() && isOnline) {
-      const ok = await postNewOrder(webAppUrl, {
-        action: 'newOrder',
-        order_id: newOrder.order_id,
-        items: newOrder.items,
-        total_amount: newOrder.total_amount,
-        payment_method: newOrder.payment_method,
-        gcash_ref: newOrder.gcash_ref,
-        amount_tendered: newOrder.amount_tendered,
-        change_due: newOrder.change_due,
-        deductions: newOrder.deductions,
-      });
-      if (ok) {
-        setSheetsReachable(true);
-        const syncedOrders = nextOrders.map((o) =>
-          o.order_id === orderId ? { ...o, synced: true } : o,
-        );
-        setOrders(syncedOrders);
-        saveOrdersLocal(syncedOrders);
-      } else {
-        setSheetsReachable(false);
-        showFeedback('warning', 'Order saved locally (Sheets offline).');
+      if (webAppUrl.trim() && isOnline) {
+        const ok = await postNewOrder(webAppUrl, {
+          action: 'newOrder',
+          order_id: newOrder.order_id,
+          items: newOrder.items,
+          total_amount: newOrder.total_amount,
+          payment_method: newOrder.payment_method,
+          gcash_ref: newOrder.gcash_ref,
+          amount_tendered: newOrder.amount_tendered,
+          change_due: newOrder.change_due,
+          deductions: newOrder.deductions,
+        });
+        if (ok) {
+          setSheetsReachable(true);
+          setOrders((prev) => {
+            const syncedOrders = prev.map((o) =>
+              o.order_id === orderId ? { ...o, synced: true } : o,
+            );
+            saveOrdersLocal(syncedOrders);
+            return syncedOrders;
+          });
+        } else {
+          setSheetsReachable(false);
+          showFeedback('warning', 'Order saved locally (Sheets offline).');
+        }
       }
+    } catch {
+      showFeedback('error', 'Failed to complete order. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   const handleConfirmRestock = async (itemId: string, addQty: number) => {
     setIsSubmitting(true);
-    const nowIso = new Date().toISOString();
-    const nextInventory = applyRestock(inventory, itemId, addQty, nowIso);
-    setInventory(nextInventory);
-    saveInventoryLocal(nextInventory);
-    setRestockTarget(null);
+    try {
+      const nowIso = new Date().toISOString();
+      const nextInventory = applyRestock(inventory, itemId, addQty, nowIso);
+      setInventory(nextInventory);
+      saveInventoryLocal(nextInventory);
+      setRestockTarget(null);
 
-    if (webAppUrl.trim() && isOnline) {
-      const ok = await postRestock(webAppUrl, {
-        action: 'restock',
-        item_id: itemId,
-        add_qty: addQty,
-      });
-      if (ok) {
-        setSheetsReachable(true);
-        showFeedback('success', `Restocked +${addQty} and synced to Sheets.`);
+      if (webAppUrl.trim() && isOnline) {
+        const ok = await postRestock(webAppUrl, {
+          action: 'restock',
+          item_id: itemId,
+          add_qty: addQty,
+        });
+        if (ok) {
+          setSheetsReachable(true);
+          showFeedback('success', `Restocked +${addQty} and synced to Sheets.`);
+        } else {
+          setSheetsReachable(false);
+          showFeedback('warning', `Restocked +${addQty} locally.`);
+        }
       } else {
-        setSheetsReachable(false);
-        showFeedback('warning', `Restocked +${addQty} locally.`);
+        showFeedback('success', `Added +${addQty} to stock.`);
       }
-    } else {
-      showFeedback('success', `Added +${addQty} to stock.`);
+    } catch {
+      showFeedback('error', 'Failed to restock item.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   const handleAddExpense = async (data: {
@@ -321,143 +336,156 @@ export default function App() {
     amount: number;
   }) => {
     setIsSubmitting(true);
-    const nowIso = new Date().toISOString();
-    const expenseId = `EXP-${Date.now().toString().slice(-6)}`;
+    try {
+      const nowIso = new Date().toISOString();
+      const expenseId = `EXP-${Date.now().toString().slice(-6)}`;
 
-    const newExpense: ExpenseRecord = {
-      expense_id: expenseId,
-      created_at: nowIso,
-      description: data.description,
-      category: data.category,
-      amount: data.amount,
-      synced: false,
-    };
-
-    const nextExpenses = [newExpense, ...expenses];
-    setExpenses(nextExpenses);
-    saveExpensesLocal(nextExpenses);
-
-    if (webAppUrl.trim() && isOnline) {
-      const ok = await postAddExpense(webAppUrl, {
-        action: 'addExpense',
+      const newExpense: ExpenseRecord = {
+        expense_id: expenseId,
+        created_at: nowIso,
         description: data.description,
         category: data.category,
         amount: data.amount,
-      });
-      if (ok) {
-        setSheetsReachable(true);
-        const synced = nextExpenses.map((ex) =>
-          ex.expense_id === expenseId ? { ...ex, synced: true } : ex,
-        );
-        setExpenses(synced);
-        saveExpensesLocal(synced);
-        showFeedback('success', 'Expense logged and synced to Sheets.');
-      } else {
-        setSheetsReachable(false);
-        showFeedback('warning', 'Expense saved locally (Sheets offline).');
-      }
-    } else {
-      showFeedback('success', 'Expense logged.');
-    }
+        synced: false,
+      };
 
-    setIsSubmitting(false);
+      const nextExpenses = [newExpense, ...expenses];
+      setExpenses(nextExpenses);
+      saveExpensesLocal(nextExpenses);
+
+      if (webAppUrl.trim() && isOnline) {
+        const ok = await postAddExpense(webAppUrl, {
+          action: 'addExpense',
+          description: data.description,
+          category: data.category,
+          amount: data.amount,
+        });
+        if (ok) {
+          setSheetsReachable(true);
+          setExpenses((prev) => {
+            const synced = prev.map((ex) =>
+              ex.expense_id === expenseId ? { ...ex, synced: true } : ex,
+            );
+            saveExpensesLocal(synced);
+            return synced;
+          });
+          showFeedback('success', 'Expense logged and synced to Sheets.');
+        } else {
+          setSheetsReachable(false);
+          showFeedback('warning', 'Expense saved locally (Sheets offline).');
+        }
+      } else {
+        showFeedback('success', 'Expense logged.');
+      }
+    } catch {
+      showFeedback('error', 'Failed to log expense.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleAddMenuItem = async (form: NewItemFormSubmission) => {
     setIsSubmitting(true);
-    const nowIso = new Date().toISOString();
+    try {
+      const nowIso = new Date().toISOString();
 
-    let nextInventory = inventory;
-    let newInventorySpec: NewInventorySpec | null = null;
-    let finalDeductions = form.deductions;
+      let nextInventory = inventory;
+      let newInventorySpec: NewInventorySpec | null = null;
+      let finalDeductions = form.deductions;
 
-    if (form.linkingMode === 'new' && form.newInventory) {
-      const newInvId = generateInventoryItemId(inventory);
-      const createdInventoryItem: InventoryItem = {
-        item_id: newInvId,
-        name: form.newInventory.name,
-        unit: form.newInventory.unit,
-        stock: form.newInventory.stock,
-        low_stock_alert: form.newInventory.low_stock_alert,
-        updated_at: nowIso,
-      };
-      nextInventory = [...inventory, createdInventoryItem];
-      setInventory(nextInventory);
-      saveInventoryLocal(nextInventory);
+      if (form.linkingMode === 'new' && form.newInventory) {
+        const newInvId = generateInventoryItemId(inventory);
+        const createdInventoryItem: InventoryItem = {
+          item_id: newInvId,
+          name: form.newInventory.name,
+          unit: form.newInventory.unit,
+          stock: form.newInventory.stock,
+          low_stock_alert: form.newInventory.low_stock_alert,
+          updated_at: nowIso,
+        };
+        nextInventory = [...inventory, createdInventoryItem];
+        setInventory(nextInventory);
+        saveInventoryLocal(nextInventory);
 
-      newInventorySpec = {
-        item_id: newInvId,
-        name: form.newInventory.name,
-        unit: form.newInventory.unit,
-        stock: form.newInventory.stock,
-        low_stock_alert: form.newInventory.low_stock_alert,
-      };
-      finalDeductions = [{ item_id: newInvId, qty: form.newInventory.deduct_qty }];
-    }
-
-    const newMenuId = generateMenuItemId(form.name, menuItems);
-    const createdMenuItem: MenuItem = {
-      id: newMenuId,
-      name: form.name,
-      price: form.price,
-      cost: form.cost,
-      category: form.category,
-      image: '',
-      deductions: finalDeductions,
-    };
-
-    const nextMenu = [...menuItems, createdMenuItem];
-    setMenuItems(nextMenu);
-    saveMenuLocal(nextMenu);
-    setIsAddItemOpen(false);
-
-    if (webAppUrl.trim() && isOnline) {
-      const ok = await postAddMenuItem(webAppUrl, {
-        action: 'addMenuItem',
-        name: createdMenuItem.name,
-        price: createdMenuItem.price,
-        cost: createdMenuItem.cost,
-        category: createdMenuItem.category,
-        deductions: finalDeductions,
-        new_inventory: newInventorySpec,
-      });
-      if (ok) {
-        setSheetsReachable(true);
-        showFeedback('success', `Added "${createdMenuItem.name}" and synced to Sheets.`);
-      } else {
-        setSheetsReachable(false);
-        showFeedback('warning', `Added "${createdMenuItem.name}" locally (Sheets offline).`);
+        newInventorySpec = {
+          item_id: newInvId,
+          name: form.newInventory.name,
+          unit: form.newInventory.unit,
+          stock: form.newInventory.stock,
+          low_stock_alert: form.newInventory.low_stock_alert,
+        };
+        finalDeductions = [{ item_id: newInvId, qty: form.newInventory.deduct_qty }];
       }
-    } else {
-      showFeedback('success', `Added "${createdMenuItem.name}" to menu.`);
-    }
 
-    setIsSubmitting(false);
+      const newMenuId = generateMenuItemId(form.name, menuItems);
+      const createdMenuItem: MenuItem = {
+        id: newMenuId,
+        name: form.name,
+        price: form.price,
+        cost: form.cost,
+        category: form.category,
+        image: '',
+        deductions: finalDeductions,
+      };
+
+      const nextMenu = [...menuItems, createdMenuItem];
+      setMenuItems(nextMenu);
+      saveMenuLocal(nextMenu);
+      setIsAddItemOpen(false);
+
+      if (webAppUrl.trim() && isOnline) {
+        const ok = await postAddMenuItem(webAppUrl, {
+          action: 'addMenuItem',
+          name: createdMenuItem.name,
+          price: createdMenuItem.price,
+          cost: createdMenuItem.cost,
+          category: createdMenuItem.category,
+          deductions: finalDeductions,
+          new_inventory: newInventorySpec,
+        });
+        if (ok) {
+          setSheetsReachable(true);
+          showFeedback('success', `Added "${createdMenuItem.name}" and synced to Sheets.`);
+        } else {
+          setSheetsReachable(false);
+          showFeedback('warning', `Added "${createdMenuItem.name}" locally (Sheets offline).`);
+        }
+      } else {
+        showFeedback('success', `Added "${createdMenuItem.name}" to menu.`);
+      }
+    } catch {
+      showFeedback('error', 'Failed to add menu item.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleManualSync = () => {
+  const handleManualSync = useCallback(() => {
     if (!webAppUrl.trim()) {
       setIsSettingsOpen(true);
       return;
     }
     void syncFromSheets(webAppUrl, false);
-  };
+  }, [syncFromSheets, webAppUrl]);
 
-  const handleSaveAndSyncSettings = async (url: string) => {
-    saveWebAppUrl(url);
-    setWebAppUrl(url);
-    await syncFromSheets(url, false);
-    setIsSettingsOpen(false);
-  };
+  const handleSaveAndSyncSettings = useCallback(
+    async (url: string) => {
+      saveWebAppUrl(url);
+      setWebAppUrl(url);
+      await syncFromSheets(url, false);
+      setIsSettingsOpen(false);
+    },
+    [syncFromSheets],
+  );
 
-  const handleDisconnectSheets = () => {
+  const handleDisconnectSheets = useCallback(() => {
     saveWebAppUrl('');
     setWebAppUrl('');
     setSheetsReachable(false);
     showFeedback('info', 'Switched to Local Mode.');
-  };
+  }, [showFeedback]);
 
-  const handleResetDemoData = () => {
+  const handleResetDemoData = useCallback(() => {
     const reset = resetDemoDataLocal();
     setMenuItems(reset.menu);
     setInventory(reset.inventory);
@@ -466,7 +494,7 @@ export default function App() {
     setLastSync(reset.lastSync);
     setCart([]);
     showFeedback('info', 'Demo data restored.');
-  };
+  }, [showFeedback]);
 
   return (
     <div className="min-h-screen bg-[#EAE0D0] flex justify-center">
@@ -520,7 +548,7 @@ export default function App() {
           {activeTab === 'inventory' && (
             <InventoryTab
               inventory={inventory}
-              onOpenRestock={(item) => setRestockTarget(item)}
+              onOpenRestock={setRestockTarget}
             />
           )}
 

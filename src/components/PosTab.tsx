@@ -226,7 +226,7 @@ export function PosTab({
       {cartItemCount > 0 && (
         <div
           data-testid="sticky-cart-bar"
-          className="fixed bottom-16 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-20 px-3 pb-2.5 pt-1 bg-gradient-to-t from-[#F7F2E8] via-[#F7F2E8]/95 to-transparent"
+          className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 w-full max-w-[480px] z-20 px-3 pb-2.5 pt-1 bg-gradient-to-t from-[#F7F2E8] via-[#F7F2E8]/95 to-transparent"
         >
           <div className="bg-[#2C1B14] text-[#FFFDF8] rounded-2xl p-2.5 pl-3.5 shadow-lg flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
