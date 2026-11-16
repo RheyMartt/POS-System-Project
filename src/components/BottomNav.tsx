@@ -22,7 +22,7 @@ export function BottomNav({
   return (
     <nav
       aria-label="Primary navigation"
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 pb-safe"
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-30 bg-[#FFFDF8]/95 backdrop-blur-md border-t border-[#DDD1BE] pb-safe"
     >
       <div role="tablist" className="grid grid-cols-4 h-16">
         {NAV_ITEMS.map((item) => {
@@ -35,16 +35,16 @@ export function BottomNav({
               role="tab"
               aria-selected={isActive}
               onClick={() => onSelectTab(item.id)}
-              className={`relative min-h-[44px] flex flex-col items-center justify-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 ${
+              className={`relative min-h-[44px] flex flex-col items-center justify-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1D4ED8] ${
                 isActive
-                  ? 'text-orange-600'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'text-[#1D4ED8]'
+                  : 'text-[#665347] hover:text-[#261812]'
               }`}
             >
               {isActive && (
                 <span
                   aria-hidden="true"
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 rounded-full bg-orange-600"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 rounded-full bg-[#1D4ED8]"
                 />
               )}
               <span className="relative inline-flex items-center justify-center">
@@ -56,7 +56,7 @@ export function BottomNav({
                 {item.id === 'inventory' && lowStockCount > 0 && (
                   <span
                     aria-label={`${lowStockCount} low stock`}
-                    className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-4 text-center tabular-nums"
+                    className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-600 text-white text-[10px] font-bold leading-4 text-center tabular-nums"
                   >
                     {lowStockCount}
                   </span>

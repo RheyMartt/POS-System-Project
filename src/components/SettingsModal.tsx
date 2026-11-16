@@ -90,21 +90,21 @@ export function SettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/55 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#261812]/55 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-modal-title"
     >
-      <div className="w-full max-w-[460px] max-h-[90vh] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+      <div className="w-full max-w-[460px] max-h-[90vh] bg-[#FFFDF8] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-[#DDD1BE] flex flex-col overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#DDD1BE] flex items-center justify-between gap-2 shrink-0">
           <div>
             <h2
               id="settings-modal-title"
-              className="text-base font-bold text-slate-900"
+              className="text-base font-bold text-[#261812]"
             >
               Google Sheets Sync & Settings
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#665347]">
               Connect your stall spreadsheet or run offline
             </p>
           </div>
@@ -112,7 +112,7 @@ export function SettingsModal({
             type="button"
             onClick={onClose}
             aria-label="Close settings"
-            className="min-h-[44px] min-w-[44px] rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center"
+            className="min-h-[44px] min-w-[44px] rounded-xl text-[#665347] hover:text-[#261812] hover:bg-[#EFE7D8] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]"
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
@@ -123,14 +123,14 @@ export function SettingsModal({
             className={`rounded-2xl p-3.5 border flex items-center justify-between gap-3 ${
               connectionMode === 'connected'
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                : 'bg-slate-50 border-slate-200 text-slate-800'
+                : 'bg-[#F7F2E8] border-[#DDD1BE] text-[#261812]'
             }`}
           >
             <div className="flex items-center gap-2.5 min-w-0">
               {connectionMode === 'connected' ? (
                 <Cloud className="w-5 h-5 text-emerald-600 shrink-0" aria-hidden="true" />
               ) : (
-                <HardDrive className="w-5 h-5 text-slate-500 shrink-0" aria-hidden="true" />
+                <HardDrive className="w-5 h-5 text-[#665347] shrink-0" aria-hidden="true" />
               )}
               <div className="min-w-0">
                 <p className="text-sm font-bold">
@@ -149,7 +149,7 @@ export function SettingsModal({
             <div>
               <label
                 htmlFor="apps-script-url"
-                className="block text-xs font-semibold text-slate-700 mb-1.5"
+                className="block text-xs font-semibold text-[#261812] mb-1.5"
               >
                 Google Apps Script Web App URL
               </label>
@@ -162,9 +162,9 @@ export function SettingsModal({
                   setError(null);
                 }}
                 placeholder="https://script.google.com/macros/s/.../exec"
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 text-xs font-mono-num text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full h-11 px-3 rounded-xl border border-[#CFC1AA] bg-[#FFFDF8] text-xs font-mono-num text-[#261812] placeholder:text-[#8C7A6B] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:border-[#1D4ED8]"
               />
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] text-[#665347] mt-1">
                 Saved in localStorage. Leave blank to stay in Local Mode.
               </p>
             </div>
@@ -182,7 +182,7 @@ export function SettingsModal({
               <button
                 type="submit"
                 disabled={isSyncing}
-                className="flex-1 min-h-[44px] rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 min-h-[44px] rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]"
               >
                 <RefreshCw
                   className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`}
@@ -198,7 +198,7 @@ export function SettingsModal({
                     setUrlInput('');
                     onDisconnect();
                   }}
-                  className="min-h-[44px] px-3.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold whitespace-nowrap"
+                  className="min-h-[44px] px-3.5 rounded-xl border border-[#DDD1BE] text-[#261812] hover:bg-[#F7F2E8] text-xs font-semibold whitespace-nowrap"
                 >
                   Use Local Mode
                 </button>
@@ -206,22 +206,22 @@ export function SettingsModal({
             </div>
           </form>
 
-          <details className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
-            <summary className="text-xs font-bold text-slate-800 cursor-pointer select-none">
+          <details className="rounded-2xl border border-[#DDD1BE] bg-[#F7F2E8]/80 p-3.5">
+            <summary className="text-xs font-bold text-[#261812] cursor-pointer select-none">
               Apps Script Endpoint Guide & Code Template
             </summary>
-            <div className="mt-3 space-y-2.5 text-xs text-slate-600">
+            <div className="mt-3 space-y-2.5 text-xs text-[#665347]">
               <p>
                 Deploy a Google Apps Script Web App with tabs{' '}
-                <strong className="text-slate-800">Inventory</strong>,{' '}
-                <strong className="text-slate-800">Orders</strong>, and{' '}
-                <strong className="text-slate-800">Expenses</strong>. Access:{' '}
+                <strong className="text-[#261812]">Inventory</strong>,{' '}
+                <strong className="text-[#261812]">Orders</strong>, and{' '}
+                <strong className="text-[#261812]">Expenses</strong>. Access:{' '}
                 <em>Anyone</em>.
               </p>
               <button
                 type="button"
                 onClick={handleCopyScript}
-                className="min-h-[40px] px-3 rounded-xl bg-white border border-slate-200 text-slate-800 font-semibold inline-flex items-center gap-1.5 hover:bg-slate-100"
+                className="min-h-[40px] px-3 rounded-xl bg-[#FFFDF8] border border-[#DDD1BE] text-[#261812] font-semibold inline-flex items-center gap-1.5 hover:bg-[#EFE7D8]"
               >
                 {copiedScript ? (
                   <>
@@ -238,8 +238,8 @@ export function SettingsModal({
             </div>
           </details>
 
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 pb-safe">
-            <span className="text-xs text-slate-500">
+          <div className="pt-2 border-t border-[#EAE0CE] flex items-center justify-between gap-2 pb-safe">
+            <span className="text-xs text-[#665347]">
               Demo & Local Storage
             </span>
             {confirmReset ? (
@@ -247,7 +247,7 @@ export function SettingsModal({
                 <button
                   type="button"
                   onClick={() => setConfirmReset(false)}
-                  className="min-h-[40px] px-3 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600"
+                  className="min-h-[40px] px-3 rounded-xl border border-[#DDD1BE] text-xs font-semibold text-[#665347]"
                 >
                   Cancel
                 </button>
@@ -266,7 +266,7 @@ export function SettingsModal({
               <button
                 type="button"
                 onClick={() => setConfirmReset(true)}
-                className="min-h-[40px] px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5"
+                className="min-h-[40px] px-3 rounded-xl border border-[#DDD1BE] hover:bg-[#F7F2E8] text-[#261812] text-xs font-semibold inline-flex items-center gap-1.5"
               >
                 <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Reset Demo Data</span>

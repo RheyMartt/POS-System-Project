@@ -382,8 +382,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-200/75 flex justify-center">
-      <div className="w-full max-w-[480px] min-h-screen bg-slate-50 shadow-xl sm:border-x sm:border-slate-200 flex flex-col relative">
+    <div className="min-h-screen bg-[#EAE0D0] flex justify-center">
+      <div className="w-full max-w-[480px] min-h-screen bg-[#F7F2E8] shadow-xl sm:border-x sm:border-[#DDD1BE] flex flex-col relative">
         <Header
           connectionMode={connectionMode}
           isSyncing={isSyncing}
@@ -406,7 +406,7 @@ export default function App() {
                     ? 'bg-amber-50 border-amber-200 text-amber-900'
                     : feedback.type === 'error'
                       ? 'bg-rose-50 border-rose-200 text-rose-800'
-                      : 'bg-slate-100 border-slate-200 text-slate-800'
+                      : 'bg-[#EFE7D8] border-[#DDD1BE] text-[#261812]'
               }`}
             >
               {feedback.message}

@@ -43,25 +43,25 @@ export function RestockModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/50 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#261812]/50 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
       aria-labelledby="restock-modal-title"
     >
-      <div className="w-full max-w-[440px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
+      <div className="w-full max-w-[440px] bg-[#FFFDF8] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-[#DDD1BE] overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#EAE0CE] flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center shrink-0">
               <PackagePlus className="w-5 h-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <h2
                 id="restock-modal-title"
-                className="text-base font-bold text-slate-900 truncate"
+                className="text-base font-bold text-[#261812] truncate"
               >
                 Restock {item.name}
               </h2>
-              <p className="text-xs text-slate-500 font-mono-num">
+              <p className="text-xs text-[#665347] font-mono-num">
                 {item.item_id} · Current: {item.stock} {item.unit}
               </p>
             </div>
@@ -70,7 +70,7 @@ export function RestockModal({
             type="button"
             onClick={onClose}
             aria-label="Close restock modal"
-            className="min-h-[44px] min-w-[44px] rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center"
+            className="min-h-[44px] min-w-[44px] rounded-xl text-[#665347] hover:text-[#261812] hover:bg-[#EFE7D8] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]"
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
@@ -78,7 +78,7 @@ export function RestockModal({
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <span className="block text-xs font-semibold text-slate-600 mb-2">
+            <span className="block text-xs font-semibold text-[#665347] mb-2">
               Quick Add
             </span>
             <div className="grid grid-cols-4 gap-2">
@@ -92,8 +92,8 @@ export function RestockModal({
                   }}
                   className={`min-h-[44px] rounded-xl border text-sm font-bold font-mono-num transition-colors ${
                     validQty === preset
-                      ? 'bg-orange-50 border-orange-500 text-orange-700'
-                      : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'
+                      ? 'bg-[#EFF6FF] border-[#1D4ED8] text-[#1E40AF]'
+                      : 'bg-[#FFFDF8] border-[#DDD1BE] text-[#261812] hover:bg-[#F7F2E8]'
                   }`}
                 >
                   +{preset}
@@ -105,7 +105,7 @@ export function RestockModal({
           <div>
             <label
               htmlFor="restock-qty-input"
-              className="block text-xs font-semibold text-slate-600 mb-1.5"
+              className="block text-xs font-semibold text-[#665347] mb-1.5"
             >
               Quantity to Add ({item.unit})
             </label>
@@ -120,13 +120,13 @@ export function RestockModal({
                 setQtyInput(e.target.value);
                 setError(null);
               }}
-              className="w-full h-12 px-3.5 rounded-xl border border-slate-300 text-slate-900 font-mono-num text-lg font-bold focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className="w-full h-12 px-3.5 rounded-xl border border-[#CFC1AA] bg-[#FFFDF8] text-[#261812] font-mono-num text-lg font-bold focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:border-[#1D4ED8]"
             />
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between text-xs">
-            <span className="font-medium text-slate-600">New Stock Balance</span>
-            <span className="font-mono-num text-sm font-bold text-slate-900 tabular-nums">
+          <div className="bg-[#F7F2E8] border border-[#DDD1BE] rounded-xl px-4 py-3 flex items-center justify-between text-xs">
+            <span className="font-medium text-[#665347]">New Stock Balance</span>
+            <span className="font-mono-num text-sm font-bold text-[#261812] tabular-nums">
               {item.stock + validQty} {item.unit}
             </span>
           </div>
@@ -141,14 +141,14 @@ export function RestockModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[48px] rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50"
+              className="flex-1 min-h-[48px] rounded-xl border border-[#DDD1BE] bg-[#FFFDF8] text-[#261812] font-semibold text-sm hover:bg-[#F7F2E8]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 min-h-[48px] rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm disabled:opacity-50"
+              className="flex-1 min-h-[48px] rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white font-bold text-sm disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]"
             >
               {isSubmitting ? 'Saving...' : 'Confirm Restock'}
             </button>

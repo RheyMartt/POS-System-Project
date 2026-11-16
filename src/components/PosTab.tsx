@@ -31,11 +31,11 @@ function MenuImage({ item }: { item: MenuItem }) {
 
   if (hasError) {
     return (
-      <div className="w-full h-full bg-gradient-to-br from-orange-50 via-amber-50 to-slate-100 flex flex-col items-center justify-center text-orange-700/70 p-2">
+      <div className="w-full h-full bg-gradient-to-br from-[#EFE7D8] via-[#F7F2E8] to-[#DBEAFE] flex flex-col items-center justify-center text-[#261812] p-2">
         {item.category === 'Drinks' ? (
-          <CupSoda className="w-8 h-8 mb-1" aria-hidden="true" />
+          <CupSoda className="w-8 h-8 mb-1 text-[#1D4ED8]" aria-hidden="true" />
         ) : (
-          <UtensilsCrossed className="w-8 h-8 mb-1" aria-hidden="true" />
+          <UtensilsCrossed className="w-8 h-8 mb-1 text-[#1D4ED8]" aria-hidden="true" />
         )}
         <span className="text-[11px] font-semibold text-center leading-tight">
           {item.name}
@@ -72,10 +72,10 @@ export function PosTab({
   return (
     <div className={cartItemCount > 0 ? 'pb-36' : 'pb-24'}>
       <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between gap-2">
-        <h1 className="text-lg font-extrabold tracking-tight text-slate-900">
+        <h1 className="text-lg font-extrabold tracking-tight text-[#261812]">
           Quick Order
         </h1>
-        <span className="text-xs font-semibold text-slate-500 whitespace-nowrap shrink-0">
+        <span className="text-xs font-semibold text-[#665347] whitespace-nowrap shrink-0">
           Tap tile to add
         </span>
       </div>
@@ -101,8 +101,8 @@ export function PosTab({
                 isWideTile ? 'col-span-2 flex flex-row items-center' : ''
               } ${
                 qtyInCart > 0
-                  ? 'bg-orange-50/50 border-orange-500 ring-2 ring-orange-500/20 shadow-sm'
-                  : 'bg-white border-slate-200 shadow-xs hover:border-slate-300'
+                  ? 'bg-[#EFF6FF]/65 border-[#1D4ED8] ring-2 ring-[#1D4ED8]/20 shadow-sm'
+                  : 'bg-[#FFFDF8] border-[#DDD1BE] shadow-xs hover:border-[#C5B69F]'
               }`}
             >
               <button
@@ -110,14 +110,14 @@ export function PosTab({
                 onClick={() => onAddToCart(item)}
                 disabled={isOut || qtyInCart >= availableServings}
                 aria-label={`Add ${item.name} (${formatPesoCompact(item.price)}) to order`}
-                className={`text-left active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 disabled:opacity-55 disabled:cursor-not-allowed ${
+                className={`text-left active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1D4ED8] disabled:opacity-55 disabled:cursor-not-allowed ${
                   isWideTile
                     ? 'flex-1 min-w-0 flex flex-row items-center gap-3 p-2.5 min-h-[84px]'
                     : 'w-full flex flex-col p-2.5'
                 }`}
               >
                 <div
-                  className={`relative rounded-xl bg-slate-100 overflow-hidden shrink-0 ${
+                  className={`relative rounded-xl bg-[#EFE7D8] overflow-hidden shrink-0 ${
                     isWideTile ? 'w-24 h-16' : 'w-full h-24'
                   }`}
                 >
@@ -125,7 +125,7 @@ export function PosTab({
                   {qtyInCart > 0 && (
                     <span
                       aria-label={`${item.name} quantity in cart`}
-                      className="absolute top-1.5 right-1.5 min-w-[28px] h-7 px-2 rounded-full bg-orange-600 text-white font-mono-num text-sm font-extrabold flex items-center justify-center shadow-md tabular-nums"
+                      className="absolute top-1.5 right-1.5 min-w-[28px] h-7 px-2 rounded-full bg-[#1D4ED8] text-white font-mono-num text-sm font-extrabold flex items-center justify-center shadow-md tabular-nums"
                     >
                       {qtyInCart}
                     </span>
@@ -139,7 +139,7 @@ export function PosTab({
                       : 'pt-2.5 flex flex-col gap-1'
                   }
                 >
-                  <h2 className="text-base font-extrabold text-slate-900 leading-tight truncate">
+                  <h2 className="text-base font-extrabold text-[#261812] leading-tight truncate">
                     {item.name}
                   </h2>
 
@@ -148,16 +148,16 @@ export function PosTab({
                       isWideTile ? 'flex-col items-end shrink-0' : 'justify-between mt-0.5'
                     }`}
                   >
-                    <span className="font-mono-num text-lg font-extrabold text-orange-600 leading-none">
+                    <span className="font-mono-num text-lg font-extrabold text-[#1D4ED8] leading-none">
                       {formatPesoCompact(item.price)}
                     </span>
                     <span
                       className={`inline-flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap tabular-nums ${
                         isOut
-                          ? 'text-rose-600'
+                          ? 'text-rose-700'
                           : isLow
-                            ? 'text-amber-700'
-                            : 'text-slate-400'
+                            ? 'text-amber-800'
+                            : 'text-[#665347]'
                       }`}
                     >
                       {(isOut || isLow) && (
@@ -183,8 +183,8 @@ export function PosTab({
                   title={`Remove one ${item.name}`}
                   className={
                     isWideTile
-                      ? 'mr-2.5 shrink-0 min-h-[44px] min-w-[44px] rounded-xl bg-white hover:bg-rose-50 active:scale-95 text-slate-800 hover:text-rose-600 border border-orange-200 shadow-xs flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500'
-                      : 'absolute top-3.5 left-3.5 z-10 min-h-[44px] min-w-[44px] rounded-xl bg-white/95 hover:bg-rose-50 active:scale-95 text-slate-800 hover:text-rose-600 border border-slate-200 shadow-md flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500'
+                      ? 'mr-2.5 shrink-0 min-h-[44px] min-w-[44px] rounded-xl bg-[#FFFDF8] hover:bg-rose-50 active:scale-95 text-[#261812] hover:text-rose-700 border border-[#93C5FD] shadow-xs flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]'
+                      : 'absolute top-3.5 left-3.5 z-10 min-h-[44px] min-w-[44px] rounded-xl bg-[#FFFDF8]/95 hover:bg-rose-50 active:scale-95 text-[#261812] hover:text-rose-700 border border-[#DDD1BE] shadow-md flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]'
                   }
                 >
                   <Minus className="w-4 h-4 stroke-[2.5]" aria-hidden="true" />
@@ -198,18 +198,18 @@ export function PosTab({
       {cartItemCount > 0 && (
         <div
           data-testid="sticky-cart-bar"
-          className="fixed bottom-16 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-20 px-3 pb-2.5 pt-1 bg-gradient-to-t from-slate-100 via-slate-100/95 to-transparent"
+          className="fixed bottom-16 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-20 px-3 pb-2.5 pt-1 bg-gradient-to-t from-[#F7F2E8] via-[#F7F2E8]/95 to-transparent"
         >
-          <div className="bg-slate-900 text-white rounded-2xl p-2.5 pl-3.5 shadow-lg flex items-center justify-between gap-2">
+          <div className="bg-[#2C1B14] text-[#FFFDF8] rounded-2xl p-2.5 pl-3.5 shadow-lg flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-orange-600 flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-[#1D4ED8] flex items-center justify-center shrink-0">
                 <ShoppingBag className="w-4 h-4 text-white" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-slate-300 font-medium whitespace-nowrap">
+                <p className="text-xs text-[#D6C7B4] font-medium whitespace-nowrap">
                   {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'}
                 </p>
-                <p className="font-mono-num text-base font-bold text-white leading-tight">
+                <p className="font-mono-num text-base font-bold text-[#FFFDF8] leading-tight">
                   {formatPeso(cartTotalAmount)}
                 </p>
               </div>
@@ -221,14 +221,14 @@ export function PosTab({
                 onClick={onClearCart}
                 aria-label="Clear cart"
                 title="Clear cart"
-                className="min-h-[44px] min-w-[44px] rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+                className="min-h-[44px] min-w-[44px] rounded-xl text-[#D6C7B4] hover:text-[#FFFDF8] hover:bg-[#3D261D] flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60A5FA]"
               >
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={onOpenCheckout}
-                className="min-h-[44px] px-4 rounded-xl bg-orange-600 hover:bg-orange-500 active:scale-[0.98] text-white text-sm font-bold whitespace-nowrap shrink-0 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+                className="min-h-[44px] px-4 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] active:scale-[0.98] text-white text-sm font-bold whitespace-nowrap shrink-0 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60A5FA]"
               >
                 Checkout
               </button>
