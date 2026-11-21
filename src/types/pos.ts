@@ -24,7 +24,14 @@ export interface InventoryItem {
   updated_at?: string;
 }
 
-export type MenuCategory = 'Food' | 'Meals' | 'Drinks' | 'Add-ons';
+export type MenuCategory =
+  | 'Promos'
+  | 'Siomai'
+  | 'Shawarma'
+  | 'Noodles'
+  | 'Snacks'
+  | 'Milktea'
+  | string;
 
 export interface MenuItem {
   id: string;

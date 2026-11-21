@@ -10,6 +10,10 @@ import { ReceiptModal } from './components/ReceiptModal';
 import { RestockModal } from './components/RestockModal';
 import { SalesTab } from './components/SalesTab';
 import { SettingsModal } from './components/SettingsModal';
+import {
+  SiomaiFlavorModal,
+  type SiomaiFlavorOption,
+} from './components/SiomaiFlavorModal';
 import { INITIAL_INVENTORY, INITIAL_MENU_ITEMS } from './data/menuAndSeed';
 import {
   fetchSheetsData,
@@ -25,6 +29,7 @@ import {
   saveMenuLocal,
   saveOrdersLocal,
   saveWebAppUrl,
+  type SyncDiagnosticInfo,
 } from './services/sheetsApi';
 import type {
   CartItem,
@@ -48,6 +53,7 @@ import {
   generateMenuItemId,
   generateOrderId,
   getStockStatus,
+  requiresSiomaiFlavor,
 } from './utils/posLogic';
 
 export default function App() {
@@ -80,6 +86,8 @@ export default function App() {
   } | null>(null);
   const [restockTarget, setRestockTarget] = useState<InventoryItem | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [syncDiagnostic, setSyncDiagnostic] = useState<SyncDiagnosticInfo | null>(null);
+  const [siomaiFlavorTarget, setSiomaiFlavorTarget] = useState<MenuItem | null>(null);
 
   const showFeedback = useCallback(
     (type: SyncFeedback['type'], message: string) => {
@@ -115,6 +123,12 @@ export default function App() {
       }
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         setSheetsReachable(false);
+        setSyncDiagnostic({
+          statusText: 'Error: Device is offline',
+          rawFirstInventoryItem: null,
+          timestamp: new Date().toISOString(),
+          isError: true,
+        });
         if (!silentOnInit) {
           showFeedback('warning', 'Device is offline. Using Local Mode.');
         }
@@ -123,42 +137,62 @@ export default function App() {
 
       setIsSyncing(true);
       try {
-        const data = await fetchSheetsData(
+        const result = await fetchSheetsData(
           trimmed,
-          INITIAL_INVENTORY,
-          INITIAL_MENU_ITEMS,
+          initialStore.inventory,
+          initialStore.menu,
         );
-        setMenuItems(data.menu);
-        setInventory(data.inventory);
-        setOrders(data.orders);
-        setExpenses(data.expenses);
-        saveMenuLocal(data.menu);
-        saveInventoryLocal(data.inventory);
-        saveOrdersLocal(data.orders);
-        saveExpensesLocal(data.expenses);
+        setMenuItems(result.menu);
+        setInventory(result.inventory);
+        setOrders(result.orders);
+        setExpenses(result.expenses);
+        saveMenuLocal(result.menu);
+        saveInventoryLocal(result.inventory);
+        saveOrdersLocal(result.orders);
+        saveExpensesLocal(result.expenses);
 
         const now = new Date().toISOString();
         setLastSync(now);
         saveLastSyncLocal(now);
         setSheetsReachable(true);
+
+        setSyncDiagnostic({
+          statusText: result.statusText,
+          rawFirstInventoryItem: result.rawFirstInventoryItem,
+          timestamp: now,
+          isError: false,
+        });
+
         if (!silentOnInit) {
           showFeedback('success', 'Synced with Google Sheets.');
         }
-      } catch {
+      } catch (err) {
         setSheetsReachable(false);
-        showFeedback('warning', 'Sheets unreachable. Running in Local Mode.');
+        const errMsg = err instanceof Error ? err.message : String(err);
+
+        setSyncDiagnostic({
+          statusText: `Error: ${errMsg}`,
+          rawFirstInventoryItem: null,
+          timestamp: new Date().toISOString(),
+          isError: true,
+        });
+
+        showFeedback(
+          'error',
+          'Sync failed: Check Apps Script deployment permissions',
+        );
       } finally {
         setIsSyncing(false);
       }
     },
-    [showFeedback],
+    [initialStore.inventory, initialStore.menu, showFeedback],
   );
 
   useEffect(() => {
-    if (initialStore.webAppUrl) {
-      void syncFromSheets(initialStore.webAppUrl, true);
+    if (webAppUrl.trim()) {
+      void syncFromSheets(webAppUrl, true);
     }
-  }, [initialStore.webAppUrl, syncFromSheets]);
+  }, [syncFromSheets, webAppUrl]);
 
   const connectionMode: ConnectionMode =
     webAppUrl.trim() && isOnline && sheetsReachable ? 'connected' : 'local';
@@ -175,6 +209,11 @@ export default function App() {
 
   const handleAddToCart = useCallback(
     (menuItem: MenuItem) => {
+      if (requiresSiomaiFlavor(menuItem)) {
+        setSiomaiFlavorTarget(menuItem);
+        return;
+      }
+
       const maxServings = computeMenuServingsAvailable(menuItem, inventory);
       if (maxServings <= 0) return;
 
@@ -201,6 +240,39 @@ export default function App() {
     [inventory],
   );
 
+  const handleConfirmSiomaiFlavor = useCallback(
+    (menuItem: MenuItem, flavor: SiomaiFlavorOption) => {
+      setSiomaiFlavorTarget(null);
+
+      const cartKey = `${menuItem.id}-${flavor.inv_id}`;
+      const itemLabel = `${menuItem.name} (${flavor.shortName})`;
+      const itemDeductions = [
+        ...(menuItem.deductions ?? []),
+        { item_id: flavor.inv_id, qty: 4 },
+      ];
+
+      setCart((prev) => {
+        const existing = prev.find((c) => c.menu_item_id === cartKey);
+        if (existing) {
+          return prev.map((c) =>
+            c.menu_item_id === cartKey ? { ...c, qty: c.qty + 1 } : c,
+          );
+        }
+        return [
+          ...prev,
+          {
+            menu_item_id: cartKey,
+            name: itemLabel,
+            unit_price: menuItem.price,
+            qty: 1,
+            deductions: itemDeductions,
+          },
+        ];
+      });
+    },
+    [],
+  );
+
   const handleIncrementCartId = useCallback(
     (menuItemId: string) => {
       const menuItem = menuItems.find((m) => m.id === menuItemId);
@@ -210,13 +282,22 @@ export default function App() {
   );
 
   const handleDecrementCart = useCallback((menuItemId: string) => {
-    setCart((prev) =>
-      prev
+    setCart((prev) => {
+      const matchingItems = prev.filter(
+        (c) =>
+          c.menu_item_id === menuItemId ||
+          c.menu_item_id.startsWith(`${menuItemId}-`),
+      );
+      if (matchingItems.length === 0) return prev;
+
+      const targetKey = matchingItems[matchingItems.length - 1].menu_item_id;
+
+      return prev
         .map((c) =>
-          c.menu_item_id === menuItemId ? { ...c, qty: c.qty - 1 } : c,
+          c.menu_item_id === targetKey ? { ...c, qty: c.qty - 1 } : c,
         )
-        .filter((c) => c.qty > 0),
-    );
+        .filter((c) => c.qty > 0);
+    });
   }, []);
 
   const handleClearCart = useCallback(() => {
@@ -615,10 +696,18 @@ export default function App() {
           connectionMode={connectionMode}
           lastSync={lastSync}
           isSyncing={isSyncing}
+          syncDiagnostic={syncDiagnostic}
           onClose={() => setIsSettingsOpen(false)}
           onSaveAndSync={handleSaveAndSyncSettings}
           onDisconnect={handleDisconnectSheets}
           onResetDemoData={handleResetDemoData}
+        />
+
+        <SiomaiFlavorModal
+          item={siomaiFlavorTarget}
+          inventory={inventory}
+          onClose={() => setSiomaiFlavorTarget(null)}
+          onSelectFlavor={handleConfirmSiomaiFlavor}
         />
       </div>
     </div>

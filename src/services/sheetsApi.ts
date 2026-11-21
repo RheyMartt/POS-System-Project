@@ -34,12 +34,21 @@ export interface LocalStoreSnapshot {
   lastSync: string | null;
 }
 
-function safeJsonParse<T>(raw: string | null, fallback: T): T {
-  if (!raw) return fallback;
+function loadOrInitStorageItem<T>(key: string, defaultValue: T): T {
+  if (typeof window === 'undefined') return defaultValue;
+  const raw = window.localStorage.getItem(key);
+  if (raw === null) {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(defaultValue));
+    } catch {
+      // ignore storage errors
+    }
+    return defaultValue;
+  }
   try {
     return JSON.parse(raw) as T;
   } catch {
-    return fallback;
+    return defaultValue;
   }
 }
 
@@ -55,8 +64,8 @@ export function loadLocalStore(): LocalStoreSnapshot {
     };
   }
 
-  const storedMenu = safeJsonParse<MenuItem[]>(
-    window.localStorage.getItem(STORAGE_KEYS.menu),
+  const storedMenu = loadOrInitStorageItem<MenuItem[]>(
+    STORAGE_KEYS.menu,
     INITIAL_MENU_ITEMS,
   );
   const normalizedMenu = storedMenu.map((item) => ({
@@ -68,16 +77,16 @@ export function loadLocalStore(): LocalStoreSnapshot {
   return {
     webAppUrl: window.localStorage.getItem(STORAGE_KEYS.webAppUrl) ?? '',
     menu: normalizedMenu,
-    inventory: safeJsonParse<InventoryItem[]>(
-      window.localStorage.getItem(STORAGE_KEYS.inventory),
+    inventory: loadOrInitStorageItem<InventoryItem[]>(
+      STORAGE_KEYS.inventory,
       INITIAL_INVENTORY,
     ),
-    orders: safeJsonParse<OrderRecord[]>(
-      window.localStorage.getItem(STORAGE_KEYS.orders),
+    orders: loadOrInitStorageItem<OrderRecord[]>(
+      STORAGE_KEYS.orders,
       INITIAL_ORDERS,
     ),
-    expenses: safeJsonParse<ExpenseRecord[]>(
-      window.localStorage.getItem(STORAGE_KEYS.expenses),
+    expenses: loadOrInitStorageItem<ExpenseRecord[]>(
+      STORAGE_KEYS.expenses,
       INITIAL_EXPENSES,
     ),
     lastSync: window.localStorage.getItem(STORAGE_KEYS.lastSync),
@@ -142,6 +151,22 @@ export function resetDemoDataLocal(): LocalStoreSnapshot {
   };
 }
 
+export interface SyncDiagnosticInfo {
+  statusText: string;
+  rawFirstInventoryItem: string | null;
+  timestamp: string;
+  isError: boolean;
+}
+
+export interface SheetsDataResult {
+  inventory: InventoryItem[];
+  orders: OrderRecord[];
+  expenses: ExpenseRecord[];
+  menu: MenuItem[];
+  statusText: string;
+  rawFirstInventoryItem: string | null;
+}
+
 export function isValidAppsScriptUrl(url: string): boolean {
   const trimmed = url.trim();
   if (!trimmed) return false;
@@ -157,12 +182,7 @@ export async function fetchSheetsData(
   webAppUrl: string,
   fallbackInventory: InventoryItem[],
   fallbackMenu: MenuItem[] = INITIAL_MENU_ITEMS,
-): Promise<{
-  inventory: InventoryItem[];
-  orders: OrderRecord[];
-  expenses: ExpenseRecord[];
-  menu: MenuItem[];
-}> {
+): Promise<SheetsDataResult> {
   const trimmed = webAppUrl.trim();
   if (!trimmed) {
     throw new Error('No Google Apps Script Web App URL configured.');
@@ -174,17 +194,71 @@ export async function fetchSheetsData(
   const sep = trimmed.includes('?') ? '&' : '?';
   const target = `${trimmed}${sep}action=getData`;
 
-  const response = await fetch(target, {
-    method: 'GET',
-    redirect: 'follow',
-  });
+  let response: Response;
+  try {
+    response = await fetch(target, {
+      method: 'GET',
+      redirect: 'follow',
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Network error connecting to Google Sheets: ${msg}`);
+  }
+
+  const responseText = await response.text();
+  const trimmedText = responseText.trim();
 
   if (!response.ok) {
     throw new Error(`Google Sheets sync returned HTTP ${response.status}`);
   }
 
-  const data: unknown = await response.json();
-  return normalizeSheetDataResponse(data, fallbackInventory, fallbackMenu);
+  if (
+    trimmedText.startsWith('<') ||
+    trimmedText.toLowerCase().includes('<!doctype') ||
+    trimmedText.toLowerCase().includes('<html')
+  ) {
+    throw new Error('Received HTML instead of JSON - check Apps Script "Anyone" access');
+  }
+
+  let data: unknown;
+  try {
+    data = JSON.parse(trimmedText);
+  } catch {
+    throw new Error('Received invalid JSON response from Google Sheets');
+  }
+
+  const normalized = normalizeSheetDataResponse(
+    data,
+    fallbackInventory,
+    fallbackMenu,
+  );
+
+  let rawFirstInventoryItem: string | null = null;
+  if (data && typeof data === 'object') {
+    const rootObj = data as Record<string, unknown>;
+    const container =
+      rootObj.data && typeof rootObj.data === 'object'
+        ? (rootObj.data as Record<string, unknown>)
+        : rootObj;
+    const rawInv = Array.isArray(container.inventory ?? container.Inventory)
+      ? ((container.inventory ?? container.Inventory) as Record<string, unknown>[])
+      : [];
+    if (rawInv.length > 0) {
+      try {
+        rawFirstInventoryItem = JSON.stringify(rawInv[0], null, 2);
+      } catch {
+        rawFirstInventoryItem = String(rawInv[0]);
+      }
+    }
+  }
+
+  const statusText = `200 OK - Loaded ${normalized.inventory.length} inventory items`;
+
+  return {
+    ...normalized,
+    statusText,
+    rawFirstInventoryItem,
+  };
 }
 
 async function postToAppsScript(

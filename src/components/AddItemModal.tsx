@@ -50,7 +50,7 @@ export function AddItemModal({
   const [name, setName] = useState('');
   const [priceInput, setPriceInput] = useState('');
   const [costInput, setCostInput] = useState('');
-  const [category, setCategory] = useState<MenuCategory>('Food');
+  const [category, setCategory] = useState<MenuCategory>('Siomai');
   const [linkingMode, setLinkingMode] = useState<InventoryLinkMode>('none');
 
   const [existingRows, setExistingRows] = useState<ExistingLinkRow[]>([
@@ -71,7 +71,7 @@ export function AddItemModal({
       setName('');
       setPriceInput('');
       setCostInput('');
-      setCategory('Food');
+      setCategory('Siomai');
       setLinkingMode('none');
       setExistingRows([
         { rowId: 1, item_id: inventory[0]?.item_id ?? '', qty: '1' },
@@ -366,7 +366,7 @@ export function AddItemModal({
               <span className="block text-xs font-semibold text-[#665347] mb-1.5">
                 Category
               </span>
-              <div className="grid grid-cols-4 gap-1 p-1 bg-[#EFE7D8] rounded-xl">
+              <div className="flex flex-wrap gap-1.5 p-1 bg-[#EFE7D8] rounded-xl">
                 {MENU_CATEGORIES.map((cat) => {
                   const active = category === cat;
                   return (
@@ -375,7 +375,7 @@ export function AddItemModal({
                       type="button"
                       aria-pressed={active}
                       onClick={() => setCategory(cat as MenuCategory)}
-                      className={`min-h-[44px] rounded-lg text-xs font-bold transition-colors whitespace-nowrap px-1 ${
+                      className={`min-h-[38px] flex-1 min-w-[70px] rounded-lg text-xs font-bold transition-colors whitespace-nowrap px-2.5 ${
                         active
                           ? 'bg-[#FFFDF8] text-[#1D4ED8] shadow-2xs'
                           : 'text-[#665347] hover:text-[#261812]'

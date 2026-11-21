@@ -38,22 +38,56 @@ export function computeUnitMargin(price: number, cost: number): number {
   return Math.round((safePrice - safeCost) * 100) / 100;
 }
 
+export function requiresSiomaiFlavor(menuItem: MenuItem): boolean {
+  if (!menuItem || !menuItem.name) return false;
+  const lower = menuItem.name.toLowerCase();
+  return lower.includes('siomai w/ rice') || lower.includes('siomai rice');
+}
+
+const SIOMAI_FLAVOR_INV_IDS = ['INV-1', 'INV-2', 'INV-3', 'INV-4', 'INV-5'];
+
 export function computeMenuServingsAvailable(
   menuItem: MenuItem,
   inventory: InventoryItem[],
 ): number {
-  if (menuItem.deductions.length === 0) return Infinity;
-  let minServings = Infinity;
-  for (const d of menuItem.deductions) {
-    if (d.qty <= 0) continue;
-    const inv = inventory.find((item) => item.item_id === d.item_id);
-    if (!inv) return 0;
-    const possible = Math.floor(Math.max(0, inv.stock) / d.qty);
-    if (possible < minServings) {
-      minServings = possible;
+  const isSiomaiRice = requiresSiomaiFlavor(menuItem);
+
+  let baseServings = Infinity;
+  if (menuItem.deductions.length > 0) {
+    for (const d of menuItem.deductions) {
+      if (d.qty <= 0) continue;
+      const inv = inventory.find((item) => item.item_id === d.item_id);
+      if (!inv) return 0;
+      const possible = Math.floor(Math.max(0, inv.stock) / d.qty);
+      if (possible < baseServings) {
+        baseServings = possible;
+      }
     }
   }
-  return minServings;
+
+  if (!isSiomaiRice) {
+    return baseServings;
+  }
+
+  // Calculate total available servings across all 5 siomai flavors (4 pcs required per order)
+  let maxFlavorServings = 0;
+  let totalFlavorServings = 0;
+  for (const flavorId of SIOMAI_FLAVOR_INV_IDS) {
+    const inv = inventory.find((item) => item.item_id === flavorId);
+    const stock = inv ? Math.max(0, inv.stock) : 0;
+    const servings = Math.floor(stock / 4);
+    if (servings > maxFlavorServings) {
+      maxFlavorServings = servings;
+    }
+    totalFlavorServings += servings;
+  }
+
+  // If no single flavor has at least 4 pieces left, no servings available
+  if (maxFlavorServings <= 0) {
+    return 0;
+  }
+
+  return Math.min(baseServings, totalFlavorServings);
 }
 
 export function computeCartTotals(cart: CartItem[]): {
@@ -361,12 +395,37 @@ export function formatSalesCsv(
   return lines.join('\n');
 }
 
-function pickField<T = unknown>(obj: Record<string, unknown>, keys: string[]): T | undefined {
-  for (const key of keys) {
-    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
-      return obj[key] as T;
+function pickField<T = unknown>(
+  obj: Record<string, unknown>,
+  candidateKeys: string[],
+): T | undefined {
+  if (!obj || typeof obj !== 'object') return undefined;
+
+  // 1. Try exact matches first
+  for (const k of candidateKeys) {
+    if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') {
+      return obj[k] as T;
     }
   }
+
+  // 2. Try normalized case-insensitive & space-insensitive key lookup
+  const candidateNormMap = new Map<string, string>();
+  for (const k of candidateKeys) {
+    const norm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!candidateNormMap.has(norm)) {
+      candidateNormMap.set(norm, k);
+    }
+  }
+
+  for (const actualKey of Object.keys(obj)) {
+    const val = obj[actualKey];
+    if (val === undefined || val === null || String(val).trim() === '') continue;
+    const actualNorm = actualKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (candidateNormMap.has(actualNorm)) {
+      return val as T;
+    }
+  }
+
   return undefined;
 }
 
@@ -440,37 +499,113 @@ export function normalizeSheetDataResponse(
     ? ((container.inventory ?? container.Inventory) as Record<string, unknown>[])
     : [];
 
+  const validInvRows = rawInv.filter((row) => {
+    if (!row || typeof row !== 'object') return false;
+    const keys = Object.keys(row);
+    if (keys.length === 0) return false;
+    return keys.some(
+      (k) => row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '',
+    );
+  });
+
+  const mappedInv: (InventoryItem | null)[] = validInvRows.map((row, index) => {
+    const rawId = pickField<string>(row, [
+      'item_id',
+      'Item_ID',
+      'id',
+      'ID',
+      'item_code',
+      'code',
+    ]);
+    const rawName = pickField<string>(row, [
+      'name',
+      'Name',
+      'item_name',
+      'Item_Name',
+      'title',
+      'item',
+    ]);
+
+    if (!rawId && !rawName) return null;
+
+    const itemId = String(
+      rawId ??
+        rawName?.toLowerCase().replace(/[^a-z0-9]+/g, '-') ??
+        `INV-${index + 1}`,
+    ).trim();
+
+    const fallback = fallbackInventory.find(
+      (f) =>
+        f.item_id.toLowerCase() === itemId.toLowerCase() ||
+        (rawName ? f.name.toLowerCase() === rawName.toLowerCase() : false),
+    );
+
+    const name = String(rawName ?? fallback?.name ?? itemId).trim();
+    const unit = String(
+      pickField(row, [
+        'unit',
+        'Unit',
+        'unit_of_measure',
+        'uom',
+      ]) ??
+        fallback?.unit ??
+        'pcs',
+    ).trim();
+
+    const rawStock = pickField(row, [
+      'stock',
+      'Stock',
+      'current_stock',
+      'Current_Stock',
+      'qty',
+      'Qty',
+      'quantity',
+      'Quantity',
+      'count',
+      'Count',
+      'balance',
+      'Balance',
+    ]);
+    const parsedStock = rawStock !== undefined ? Number(rawStock) : NaN;
+    const stock = Number.isFinite(parsedStock)
+      ? parsedStock
+      : (fallback?.stock ?? 0);
+
+    const rawAlert = pickField(row, [
+      'low_stock_alert',
+      'Low_Stock_Alert',
+      'min_stock',
+      'Min_Stock',
+      'alert_level',
+      'Alert_Level',
+      'low_alert',
+    ]);
+    const parsedAlert = rawAlert !== undefined ? Number(rawAlert) : NaN;
+    const low_stock_alert = Number.isFinite(parsedAlert)
+      ? parsedAlert
+      : (fallback?.low_stock_alert ?? 15);
+
+    const itemObj: InventoryItem = {
+      item_id: itemId,
+      name,
+      unit,
+      stock,
+      low_stock_alert,
+      updated_at: String(
+        pickField(row, [
+          'updated_at',
+          'Updated_At',
+          'timestamp',
+          'Timestamp',
+        ]) ?? new Date().toISOString(),
+      ),
+    };
+    return itemObj;
+  });
+
   const inventory: InventoryItem[] =
-    rawInv.length > 0
-      ? rawInv.map((row, index) => {
-          const itemId = String(
-            pickField(row, ['item_id', 'Item_ID', 'id', 'ID']) ?? `INV-${index + 1}`,
-          );
-          const fallback = fallbackInventory.find((f) => f.item_id === itemId);
-          return {
-            item_id: itemId,
-            name: String(
-              pickField(row, ['name', 'Name', 'item_name', 'Item_Name']) ??
-                fallback?.name ??
-                itemId,
-            ),
-            unit: String(
-              pickField(row, ['unit', 'Unit']) ?? fallback?.unit ?? 'pcs',
-            ),
-            stock: Number(
-              pickField(row, ['stock', 'Stock', 'qty', 'Qty', 'quantity', 'Quantity']) ?? 0,
-            ),
-            low_stock_alert: Number(
-              pickField(row, ['low_stock_alert', 'Low_Stock_Alert', 'min_stock']) ??
-                fallback?.low_stock_alert ??
-                15,
-            ),
-            updated_at: String(
-              pickField(row, ['updated_at', 'Updated_At', 'timestamp']) ??
-                new Date().toISOString(),
-            ),
-          };
-        })
+    validInvRows.length > 0
+      ? mappedInv.filter((item): item is InventoryItem => item !== null)
       : fallbackInventory;
 
   const rawMenu = Array.isArray(container.menu ?? container.Menu)

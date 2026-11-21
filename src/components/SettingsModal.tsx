@@ -11,6 +11,7 @@ import {
 import {
   APPS_SCRIPT_TEMPLATE,
   isValidAppsScriptUrl,
+  type SyncDiagnosticInfo,
 } from '../services/sheetsApi';
 import type { ConnectionMode } from '../types/pos';
 
@@ -20,6 +21,7 @@ interface SettingsModalProps {
   connectionMode: ConnectionMode;
   lastSync: string | null;
   isSyncing: boolean;
+  syncDiagnostic?: SyncDiagnosticInfo | null;
   onClose: () => void;
   onSaveAndSync: (url: string) => Promise<void>;
   onDisconnect: () => void;
@@ -32,6 +34,7 @@ export function SettingsModal({
   connectionMode,
   lastSync,
   isSyncing,
+  syncDiagnostic,
   onClose,
   onSaveAndSync,
   onDisconnect,
@@ -205,6 +208,57 @@ export function SettingsModal({
               )}
             </div>
           </form>
+
+          <details className="rounded-2xl border border-[#DDD1BE] bg-[#FFFDF8] p-3.5 space-y-2">
+            <summary className="text-xs font-bold text-[#261812] cursor-pointer select-none flex items-center justify-between">
+              <span>Debug / Last Sync Response</span>
+              <span
+                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  syncDiagnostic?.isError
+                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                    : syncDiagnostic
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : 'bg-gray-100 text-gray-700 border border-gray-200'
+                }`}
+              >
+                {syncDiagnostic ? (syncDiagnostic.isError ? 'Error' : 'OK') : 'No Sync Yet'}
+              </span>
+            </summary>
+
+            <div className="mt-3 space-y-2.5 text-xs">
+              <div>
+                <p className="text-[11px] font-semibold text-[#665347] mb-1">Status / Result:</p>
+                <div
+                  className={`p-2.5 rounded-xl text-xs font-semibold border font-mono-num ${
+                    syncDiagnostic?.isError
+                      ? 'bg-rose-50 border-rose-200 text-rose-800'
+                      : syncDiagnostic
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                        : 'bg-[#F7F2E8] border-[#DDD1BE] text-[#665347]'
+                  }`}
+                >
+                  {syncDiagnostic?.statusText ?? 'No sync executed in this session yet.'}
+                </div>
+              </div>
+
+              {syncDiagnostic?.rawFirstInventoryItem && (
+                <div>
+                  <p className="text-[11px] font-semibold text-[#665347] mb-1">
+                    First Raw Inventory Row (from Sheets):
+                  </p>
+                  <pre className="p-2.5 rounded-xl bg-[#2C1B14] text-emerald-400 text-[11px] overflow-x-auto max-h-40 leading-relaxed font-mono select-all">
+                    {syncDiagnostic.rawFirstInventoryItem}
+                  </pre>
+                </div>
+              )}
+
+              {syncDiagnostic?.timestamp && (
+                <p className="text-[10px] text-[#8C7A6B]">
+                  Logged at: {new Date(syncDiagnostic.timestamp).toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+          </details>
 
           <details className="rounded-2xl border border-[#DDD1BE] bg-[#F7F2E8]/80 p-3.5">
             <summary className="text-xs font-bold text-[#261812] cursor-pointer select-none">
