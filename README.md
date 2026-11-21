@@ -1,4 +1,5 @@
 Mobile Food Stall POS & Micro-ERP
+
 A lightweight, mobile-first Point of Sale (POS) and inventory management web application built specifically for fast-paced street food stalls and micro-merchants. Designed for single-handed operation on smartphones, it eliminates bulky hardware costs through zero-server Google Sheets database integration and instant in-app digital receipts.
 
 Key Features
