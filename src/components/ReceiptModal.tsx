@@ -47,8 +47,11 @@ export function ReceiptModal({
               >
                 Digital Receipt
               </h2>
-              <p className="text-xs text-[#665347]">
-                Kanto Siomai Stall
+              <p className="text-xs font-semibold">
+                <span className="text-[#261812]">Snacks</span>
+                <span className="text-[#1D4ED8]">2</span>
+                <span className="text-[#665347]">Go</span>
+                <span className="text-[#665347] font-normal"> Stall</span>
               </p>
             </div>
           </div>

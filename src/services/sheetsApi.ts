@@ -318,7 +318,7 @@ export function postAddMenuItem(
   return postToAppsScript(webAppUrl, payload);
 }
 
-export const APPS_SCRIPT_TEMPLATE = `// Google Apps Script Web App for Kanto Siomai POS
+export const APPS_SCRIPT_TEMPLATE = `// Google Apps Script Web App for Snacks2Go POS
 // Sheets expected: "Menu", "Inventory", "Orders", "Expenses"
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) || "getData";

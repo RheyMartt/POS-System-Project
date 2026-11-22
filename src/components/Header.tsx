@@ -22,8 +22,10 @@ export function Header({
     <header className="sticky top-0 z-30 pt-safe bg-[#FFFDF8]/95 backdrop-blur-md border-b border-[#DDD1BE]">
       <div className="h-14 px-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-lg font-extrabold tracking-tight text-[#261812] whitespace-nowrap shrink-0">
-            Kanto Siomai
+          <span className="text-lg font-extrabold tracking-tight whitespace-nowrap shrink-0">
+            <span className="text-[#261812]">Snacks</span>
+            <span className="text-[#1D4ED8]">2</span>
+            <span className="text-[#665347]">Go</span>
           </span>
           <span
             data-testid="connection-status-pill"
